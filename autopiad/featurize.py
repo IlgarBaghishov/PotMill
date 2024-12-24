@@ -3,7 +3,7 @@ from mpi4py import MPI
 from fitsnap3lib.fitsnap import FitSnap
 from fitsnap3lib.scrapers.ase_funcs import ase_scraper
 import pandas as pd
-from piad.tools import rcuts_to_string
+from autopiad.tools import rcuts_to_string
 
 
 def featurize(config, fitsnap_config, rcuts, start_path):

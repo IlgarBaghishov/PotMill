@@ -1,10 +1,9 @@
-from ase.calculators.vasp import Vasp
-from ase.io import read, write
 import numpy as np
 import os, glob, sys, json
-from shutil import make_archive
-from numpy import dot
 import xml.etree.ElementTree as ET
+from ase.calculators.vasp import Vasp
+from ase.io import read, write
+from shutil import make_archive
 
 
 def write_json(data, jsonfilename):
@@ -64,7 +63,7 @@ def convert_xml_to_jason(xml_file, JSON_file):
             frac_atom_coords = []
             for entry in elem.find("varray[@name='positions']"):
                 frac_atom_coords.append([float(x) for x in entry.text.split()])
-            atom_coords = dot(frac_atom_coords, all_lattice).tolist()
+            atom_coords = np.dot(frac_atom_coords, all_lattice).tolist()
             #print(atom_coords)
             
         elif elem.tag == 'calculation' and event=='end': #this triggers each ionic step

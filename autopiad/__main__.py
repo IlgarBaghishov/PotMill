@@ -1,13 +1,13 @@
 import pandas as pd
 import os, copy, time
 from ase.io import write
-from piad.tools import rcuts_to_string, twojmaxes_to_string, hyperparameters_to_string, create_rcut_range
-from piad.tools import combined_hyperparameters, parse_inputfile, configparse
-from piad.featurize import featurize
-from piad.vasp import vasp
-from piad.fake_vasp import fake_vasp
-from piad.fit import fit
-from piad.pareto import pareto
+from autopiad.tools import rcuts_to_string, twojmaxes_to_string, hyperparameters_to_string, create_rcut_range
+from autopiad.tools import combined_hyperparameters, parse_inputfile, configparse
+from autopiad.featurize import featurize
+from autopiad.vasp import vasp
+from autopiad.fake_vasp import fake_vasp
+from autopiad.fit import fit
+from autopiad.pareto import pareto
 import flux
 import concurrent.futures
 import flux.job
