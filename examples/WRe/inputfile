@@ -3,7 +3,7 @@ vasp = 1
 feature = 1
 fit = 1
 pareto = 1
-fit_freq = 500
+fit_freq = 200
 auto_reduce_hyperparameters = 0
 ncores_per_fit = 5
 

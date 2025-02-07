@@ -1,10 +1,9 @@
-import os
-import pandas as pd
-import glob
-from autopiad.tools import rcuts_to_string
-
 
 def pareto(tasks, rs, start_path, hyperparameters_list, feature_names, job_ids_for_fit, remaining_fits, trigger_fit, auto_reduce_hps, wait_for_last_fit):
+
+    import pandas as pd
+    import glob
+    from autopiad.tools import rcuts_to_string
 
     results_dirs = glob.glob(start_path+"fits/"+str(len(job_ids_for_fit))+"_*")
     results_df = pd.DataFrame()

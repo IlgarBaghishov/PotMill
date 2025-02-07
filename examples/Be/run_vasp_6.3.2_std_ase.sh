@@ -13,7 +13,7 @@ export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/opt/nvidia/hpc_sdk/Linux_x86_64/24.7/cu
 export TMP_LD_LIBRARY_PATH=$CONDA_LD:$PMIPATH:$LD_LIBRARY_PATH
 ###############################################################################
 
-export VASP_ROOT=/usr/projects/icapt/applications/vasp/vasp.6.4.2-nvidia-gpu
+export VASP_ROOT=/usr/projects/icapt/applications/vasp/vasp-6.4.2-nvidia-gpu
 source ${VASP_ROOT}/setenv_chicoma.sh
 export MPICH_GPU_SUPPORT_ENABLED=0
 

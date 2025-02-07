@@ -11,7 +11,7 @@ from autopiad.pareto import pareto
 import flux
 import concurrent.futures
 import flux.job
-from executorlib import Executor
+from executorlib import FluxJobExecutor
 
 
 def main():
@@ -51,9 +51,15 @@ def main():
 
 
     # scan the available configurations and sort them by size
-    df = pd.read_pickle(start_path + config["DATA"]["data_path"], compression="gzip")
-    force_energy_filename = start_path + "force_energy.pkl"
-    df.iloc[:,4:].to_pickle(force_energy_filename)
+    try:
+        df = pd.read_hdf(start_path + config["DATA"]["data_path"]).iloc[:5000,:]
+    except:
+        try:
+            df = pd.read_pickle(start_path + config["DATA"]["data_path"], compression="gzip").iloc[:5000,:]
+            force_energy_filename = start_path + "force_energy.pkl"
+            df.iloc[:,4:].to_pickle(force_energy_filename)
+        except:
+            raise
     index0 = 0
     index1 = df.shape[0]
     tasks = []
@@ -104,12 +110,12 @@ def main():
     if fit_mode: fitting_futures = set()
 
     start_time = time.time()
-    with Executor(backend="flux_allocation", flux_log_files=True) as exe:
+    with FluxJobExecutor(flux_executor_pmi_mode="pmi2", flux_log_files=True) as exe:
 
         rl = flux.resource.list.resource_list(handle).get()
         print(rl.free.ncores, "CORES FREE ",all_ncores, "CORES TOTAL")
         print(rl.free.ngpus, "GPUS FREE ",all_ngpus, "GPUS TOTAL")
-        featurize_cores = (rl.free.ncores - rl.free.ngpus)//len(rs.nodelist)
+        featurize_cores = (rl.free.ncores - rl.free.ngpus)//len(rs.nodelist) - 1
         print("Number of cores allocated for featurization step is", featurize_cores)
 
         print("Featurization step...")
@@ -119,7 +125,7 @@ def main():
             if not os.path.isdir(feature_directory):
                 os.mkdir(feature_directory)
             fs = exe.submit(featurize, config, fitsnap_config, rcuts, start_path,
-                            resource_dict={"cores": 1, "gpus_per_core": 0, "cwd": feature_directory})
+                            resource_dict={"cores": featurize_cores, "gpus_per_core": 0, "cwd": feature_directory})
             fs.task_ = i
             featurization_futures.add(fs)
             in_process_featurizations.append(i)
@@ -147,7 +153,8 @@ def main():
                 n_gpus_free = rl.free.ngpus
                 n_cores_free = rl.free.ncores
             
-                while n_gpus_free>=1 and len(remaining_tasks)>0 and len(in_process_tasks)<all_ngpus:
+                # while n_gpus_free>=1 and len(remaining_tasks)>0 and len(in_process_tasks)<all_ngpus:
+                while n_gpus_free>=1 and len(remaining_tasks)>0 and len(in_process_tasks)<(all_ngpus-1):
                     
                     #get one of the "big" jobs
                     task = remaining_tasks.pop(0)
@@ -155,10 +162,10 @@ def main():
                     vasp_directory = start_path + "vasp-energy/vasp-em_%i/"%task
 
                     print("RUNNING ", task, "on GPUs", vasp_directory, input_file)
-                    fs = exe.submit(fake_vasp, force_energy_filename, task, first_index[task],
-                                    resource_dict={"cores": 1, "gpus_per_core": 1, "cwd": vasp_directory})
-                    # fs = exe.submit(vasp, start_path, start_path+input_file, task, first_index[task],
+                    # fs = exe.submit(fake_vasp, force_energy_filename, task, first_index[task],
                     #                 resource_dict={"cores": 1, "gpus_per_core": 1, "cwd": vasp_directory})
+                    fs = exe.submit(vasp, start_path, start_path+input_file, task, first_index[task],
+                                    resource_dict={"cores": 1, "gpus_per_core": 1, "cwd": vasp_directory})
                     fs.task_ = task
                     vasp_futures.add(fs)
                     in_process_tasks.append(task)
@@ -224,7 +231,7 @@ def main():
                     if not os.path.isdir(fit_directory):
                         os.mkdir(fit_directory)
                     fs = exe.submit(fit, start_path+"features/", hyperparameters_list[i], feature_names,
-                                    resource_dict={"cores": 1, "gpus_per_core": 0, "cwd": fit_directory})
+                                    resource_dict={"cores": 1, "threads_per_core": 4, "gpus_per_core": 0, "cwd": fit_directory})
                     fs.task_ = i
                     fitting_futures.add(fs)
                     in_process_fits.append(i)
@@ -242,7 +249,12 @@ def main():
             if feature_mode:
                 featurizations_done, featurization_futures = concurrent.futures.wait(featurization_futures, timeout=0.1)
                 for fut in featurizations_done:
-                    feature_names = fut.result()
+                    if featurize_cores > 1:
+                        feature_names_list = fut.result()
+                        assert all(feature_names == feature_names_list[0] for feature_names in feature_names_list)
+                        feature_names = feature_names_list[0]
+                    elif featurize_cores == 1:
+                        feature_names = fut.result()
                     completed_featurizations.append(fut.task_)
                     in_process_featurizations.remove(fut.task_)
                     print(len(remaining_featurizations)," FEATURIZATIONS REMAINING  --- ", len(in_process_featurizations)," FEATURIZATIONS IN PROCESS  --- ",

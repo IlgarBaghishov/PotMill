@@ -1,10 +1,10 @@
-import numpy as np
-import pandas as pd
-import random
-from autopiad.tools import rcuts_to_string, twojmaxes_to_string
-
 
 def fit(features_directory, hyperparameters, feature_names, train_fraction = 0.7, n_fold = 3, rcond = 1e-10):
+
+    import numpy as np
+    import pandas as pd
+    import random
+    from autopiad.tools import rcuts_to_string, twojmaxes_to_string
 
     # print("CPU count is",multiprocessing.cpu_count(),os.cpu_count())
     rcuts, twojmaxes, eweight = hyperparameters

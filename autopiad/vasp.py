@@ -134,10 +134,19 @@ def vasp(start_path, input_file, job_id, first_index):
         sys.exit(0)
 
     #have to set this up accordingly
-    calc = Vasp(xc='pbe',  # Select exchange-correlation functional
-                encut=300, # Plane-wave cutoff
-                ismear=1, lwave=False, lcharg=False, prec='Normal', nelm=100, ediff=1e-6, kspacing=1.0,
-                setups={'Re':'','W':''})#, directory=run_directory)  # setups='recommended'
+    try:
+        calc = Vasp(xc='pbe',  # Select exchange-correlation functional
+                    encut=300, # Plane-wave cutoff
+                    ismear=1, lwave=False, lcharg=False, prec='Normal', nelm=100, ediff=1e-6, kspacing=1.0,
+                    setups={'Re':'','W':''})#, directory=run_directory)  # setups='recommended'
+    except:
+        try:
+            calc = Vasp(xc='pbe',  # Select exchange-correlation functional
+                        encut=500, # Plane-wave cutoff
+                        ismear=1, lwave=False, lcharg=False, prec='Normal', nelm=100, ediff=1e-6, kspacing=0.5,
+                        setups='recommended')#, directory=run_directory)  # setups='recommended'
+        except:
+            raise
 
     #have to get this from somewhere. get file as input
     atoms = read(input_file, index=0, format='vasp')
@@ -207,6 +216,6 @@ def vasp(start_path, input_file, job_id, first_index):
                     os.remove(file)
             
         except:
-            pass
+            raise
     except:
-        pass
+        raise

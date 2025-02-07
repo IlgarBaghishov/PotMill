@@ -5,11 +5,17 @@ from itertools import product
 
 
 def rcuts_to_string(rcuts, delimiter=" "):
-    return delimiter.join([str(rcut) for rcut in rcuts])
+    if isinstance(rcuts,int):
+        return str(rcuts)
+    if isinstance(rcuts,list):
+        return delimiter.join([str(rcut) for rcut in rcuts])
 
 
-def twojmaxes_to_string(twojmax_list, delimiter=" "):
-    return delimiter.join([str(twojmax) for twojmax in twojmax_list])
+def twojmaxes_to_string(twojmaxes, delimiter=" "):
+    if isinstance(twojmaxes,int):
+        return str(twojmaxes)
+    if isinstance(twojmaxes,list):
+        return delimiter.join([str(twojmax) for twojmax in twojmaxes])
 
 
 # def hyperparameters_to_string(hyperparameters, delimiter=" "):
