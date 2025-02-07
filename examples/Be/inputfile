@@ -2,8 +2,8 @@
 vasp = 1
 feature = 1
 fit = 1
-pareto = 0
-fit_freq = 50
+pareto = 1
+fit_freq = 200
 auto_reduce_hyperparameters = 0
 ncores_per_fit = 5
 
@@ -14,7 +14,7 @@ filename = FitSNAP.in
 [RCUT]
 min_rcut = 4
 max_rcut = 6
-num_rcut = 5
+num_rcut = 4
 
 [TWOJMAX]
 min_twojmax = 6

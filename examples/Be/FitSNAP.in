@@ -1,5 +1,5 @@
 [BISPECTRUM]
-numTypes = 2
+numTypes = 1
 twojmax = 6
 rcutfac = 1.0
 rfac0 = 0.99363
@@ -49,5 +49,5 @@ scraper = JSON
 output_style = SNAP
 
 [PATH]
-dataPath = /lustre/scratch5/baghishov/autopiad/examples/Be/entropy-set/Final_entropy_set.hdf
+dataPath = entropy-set/Final_entropy_set.hdf
 
