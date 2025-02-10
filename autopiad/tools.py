@@ -65,7 +65,7 @@ def create_eweight_range(middle_eweight,n_eweights):
 def combined_hyperparameters(config, w_eweight=True):
     rcut_range = create_rcut_range(config['RCUT']["min_rcut"], config['RCUT']["max_rcut"], config['RCUT']["num_rcut"])
     twojmax_range = create_twojmax_range(config['TWOJMAX']["min_twojmax"], config['TWOJMAX']["max_twojmax"])
-    eweight_range = create_eweight_range(config['EWEIGHT']["middle_eweight"], config['EWEIGHT']["n_eweights"])
+    eweight_range = create_eweight_range(config['EWEIGHT']["middle_eweight"], config['EWEIGHT']["num_eweights"])
     if w_eweight:
         hyperparameters_list = [[rcut_list,twojmax_list,eweight] for rcut_list in rcut_range for twojmax_list in twojmax_range
                                        for eweight in eweight_range]

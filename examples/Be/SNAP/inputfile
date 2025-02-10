@@ -1,0 +1,30 @@
+[MODE]
+vasp = 1
+featurize = 1
+fit = 1
+pareto = 1
+fit_freq = 200
+auto_reduce_hyperparameters = 0
+ncores_per_fit = 5
+
+[FitSNAP]
+chem_elem = Be
+filename = FitSNAP.in
+
+[RCUT]
+min_rcut = 4
+max_rcut = 6
+num_rcut = 5
+
+[TWOJMAX]
+min_twojmax = 6
+max_twojmax = 10
+
+[EWEIGHT]
+middle_eweight = 10
+num_eweights = 5
+constant = 1
+
+[DATA]
+data_path = entropy-set/Final_entropy_set.hdf
+format = ase

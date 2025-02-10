@@ -5,7 +5,7 @@ def pareto(tasks, rs, start_path, hyperparameters_list, feature_names, job_ids_f
     import glob
     from autopiad.tools import rcuts_to_string
 
-    results_dirs = glob.glob(start_path+"fits/"+str(len(job_ids_for_fit))+"_*")
+    results_dirs = glob.glob(start_path+"fits/"+str(len(job_ids_for_fit))+"/*")
     results_df = pd.DataFrame()
     for results_dir in results_dirs:
         results_ = pd.read_csv(results_dir+"/results.csv", header=None)

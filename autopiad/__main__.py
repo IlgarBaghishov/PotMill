@@ -1,5 +1,5 @@
 import pandas as pd
-import os, copy, time
+import os, copy, time, pickle
 from ase.io import write
 from autopiad.tools import rcuts_to_string, twojmaxes_to_string, hyperparameters_to_string, create_rcut_range
 from autopiad.tools import combined_hyperparameters, parse_inputfile, configparse
@@ -31,24 +31,28 @@ def main():
     fitsnap_config = {section: dict(fitsnap_config.items(section)) for section in fitsnap_config.sections()}
     fitsnap_config["BISPECTRUM"]["twojmax"] = twojmaxes_to_string(config["TWOJMAX"]["max_twojmax"])
 
+    resume_mode = config["MODE"]["resume"]
     vasp_mode = config["MODE"]["vasp"]
-    feature_mode = config["MODE"]["feature"]
+    feature_mode = config["MODE"]["featurize"]
     fit_mode = config["MODE"]["fit"]
     pareto_mode = config["MODE"]["pareto"]
     fit_freq = config["MODE"]["fit_freq"]
     auto_reduce_hps = config["MODE"]["auto_reduce_hyperparameters"]
 
-    if not os.path.isdir(start_path+"features"):
+    if not resume_mode and feature_mode:
+        os.system("rm -rf "+start_path+"features")
         os.mkdir(start_path+"features")
-    if not os.path.isdir(start_path+"fits"):
+    if not resume_mode and fit_mode:
+        os.system("rm -rf "+start_path+"fits")
         os.mkdir(start_path+"fits")
-    if not os.path.isdir(start_path+"pareto-front"):
+    if not resume_mode and pareto_mode:
+        os.system("rm -rf "+start_path+"pareto-front")
         os.mkdir(start_path+"pareto-front")
-    if vasp_mode and not os.path.isdir(start_path+"vasp-energy"):
-        os.mkdir(start_path+"vasp-energy")
-    if vasp_mode and not os.path.isdir(start_path+"energy-configs"):
+    if not resume_mode and vasp_mode:
+        os.system("rm -rf "+start_path+"energy-configs")
         os.mkdir(start_path+"energy-configs")
-
+        os.system("rm -rf "+start_path+"vasp-energy")
+        os.mkdir(start_path+"vasp-energy")
 
     # scan the available configurations and sort them by size
     try:
@@ -75,33 +79,32 @@ def main():
             write(start_path+"energy-configs/em_%i.dat"% i, atoms, format='vasp')
         if not os.path.isdir(start_path+"vasp-energy/vasp-em_%i"% i):
             os.makedirs(start_path+"vasp-energy/vasp-em_%i"% i)
-
-    #large systems are at the end, small systems are at the front
-    tasks.sort(key=lambda x: x[1])
+    tasks.sort(key=lambda x: x[1]) #large systems are at the end, small systems are at the front
 
     in_process_featurizations = []
-    completed_featurizations = []
-    remaining_featurizations = [i for i in range(len(rcuts_list))] if feature_mode else []
-
     in_process_tasks = []
-    completed_tasks = []
-    remaining_tasks = [task[0] for task in tasks] if vasp_mode else []
-    failed_tasks = []
-
-    trigger_fit = 0 if vasp_mode else 2
-    wait_for_last_fit = 0
-    job_ids_for_fit = []
     in_process_fits = []
-    completed_fits = []
-    remaining_fits = [i for i in range(len(hyperparameters_list))] if fit_mode else []
-
-    # #look if a restart file is present
-    # if os.path.isfile("restart.p"):
-    #     try:
-    #         completed_tasks, remaining_tasks=pickle.load( open( "restart.p", "rb" ) )
-    #         print("RESTARTING")
-    #     except:
-    #         pass
+    if resume_mode and os.path.isfile("checkpoint.pkl"):
+        print("RESUMING FROM CHECKPOINT")
+        with open("checkpoint.pkl", "rb") as f:
+            (completed_featurizations, completed_tasks, completed_fits, job_ids_for_fit,
+             feature_names, trigger_fit, wait_for_last_fit) = pickle.load(f)
+            
+        remaining_featurizations = [i for i in range(len(rcuts_list)) if i not in completed_featurizations]
+        remaining_tasks = [task[0] for task in tasks if task[0] not in completed_tasks]
+        remaining_fits = [i for i in range(len(hyperparameters_list)) if i not in completed_fits]
+        failed_tasks = []
+    else:
+        completed_featurizations = []
+        completed_tasks = []
+        completed_fits = []
+        remaining_featurizations = [i for i in range(len(rcuts_list))] if feature_mode else []
+        remaining_tasks = [task[0] for task in tasks] if vasp_mode else []
+        remaining_fits = [i for i in range(len(hyperparameters_list))] if fit_mode else []
+        failed_tasks = []
+        job_ids_for_fit = []
+        trigger_fit = 0 if vasp_mode else 2
+        wait_for_last_fit = 0
 
     print(len(remaining_tasks)," TASKS REMAINING  --- ", len(in_process_tasks)," TASKS IN PROCESS  --- ", len(completed_tasks), " COMPLETED TASKS")
 
@@ -115,12 +118,16 @@ def main():
         rl = flux.resource.list.resource_list(handle).get()
         print(rl.free.ncores, "CORES FREE ",all_ncores, "CORES TOTAL")
         print(rl.free.ngpus, "GPUS FREE ",all_ngpus, "GPUS TOTAL")
-        featurize_cores = (rl.free.ncores - rl.free.ngpus)//len(rs.nodelist) - 1
+        # featurize_cores = (rl.free.ncores - rl.free.ngpus)//len(rs.nodelist) - 1
+        featurize_cores = 19
         print("Number of cores allocated for featurization step is", featurize_cores)
 
         print("Featurization step...")
-        for i, rcuts in enumerate(rcuts_list):
-            remaining_featurizations.remove(i)
+        # for i, rcuts in enumerate(rcuts_list):
+        #     remaining_featurizations.remove(i)
+        for i in remaining_featurizations:
+            rcuts = rcuts_list[i]
+
             feature_directory = start_path + "features/" + rcuts_to_string(rcuts, delimiter='_')
             if not os.path.isdir(feature_directory):
                 os.mkdir(feature_directory)
@@ -129,7 +136,7 @@ def main():
             fs.task_ = i
             featurization_futures.add(fs)
             in_process_featurizations.append(i)
-
+        remaining_featurizations = []
 
         while True:
             # time.sleep(1)
@@ -190,10 +197,6 @@ def main():
                     elif len(completed_tasks) == len(tasks) and len(in_process_fits) != 0:
                         wait_for_last_fit = 1
 
-                    try:
-                        print(fut.result())
-                    except:
-                        pass
                     in_process_tasks.remove(fut.task_)
                     print(len(remaining_tasks)," TASKS REMAINING  --- ", len(in_process_tasks)," TASKS IN PROCESS  --- ",
                         len(completed_tasks), " COMPLETED TASKS")
@@ -221,17 +224,20 @@ def main():
             # print("SCHEDULING FITTING TASKS")
             if (trigger_fit == 2 and len(remaining_fits) > 0) and (len(in_process_featurizations)==0):
                 #save to a file the configurations that have energies already from completed tasks
-                n_excess_cores_free = rl.free.ncores - rl.free.ngpus
+                n_excess_cores_free = rl.free.ncores - rl.free.ngpus - len(rs.nodelist)
                 ncores_per_fit = config["MODE"]["ncores_per_fit"]
                 while n_excess_cores_free>=ncores_per_fit and len(remaining_fits)>0 and (len(in_process_fits)<((all_ncores-all_ngpus)//ncores_per_fit)):
                     print("Starting the fits...")
                     i = remaining_fits.pop(0)
-                    fit_directory = start_path + "fits/" + str(len(job_ids_for_fit)) + "_" + \
-                        hyperparameters_to_string(hyperparameters_list[i], delimiter='_')
+                    fit_directory = start_path + "fits/" + str(len(job_ids_for_fit))
+                    if not os.path.isdir(fit_directory):
+                        os.mkdir(fit_directory)
+                    fit_directory += "/" + hyperparameters_to_string(hyperparameters_list[i], delimiter='_')
                     if not os.path.isdir(fit_directory):
                         os.mkdir(fit_directory)
                     fs = exe.submit(fit, start_path+"features/", hyperparameters_list[i], feature_names,
-                                    resource_dict={"cores": 1, "threads_per_core": 4, "gpus_per_core": 0, "cwd": fit_directory})
+                                    resource_dict={"cores": 1, "threads_per_core": ncores_per_fit,
+                                                   "gpus_per_core": 0, "cwd": fit_directory})
                     fs.task_ = i
                     fitting_futures.add(fs)
                     in_process_fits.append(i)
@@ -287,6 +293,11 @@ def main():
                 wait_for_last_fit = 0
                 print("Triggering last fit: ",len(completed_tasks))
 
+            
+            if len(in_process_featurizations) == 0:
+                with open("checkpoint.pkl", "wb") as f:
+                    pickle.dump((completed_featurizations, completed_tasks, completed_fits, job_ids_for_fit,
+                                feature_names, trigger_fit, wait_for_last_fit), f)
 
 
 if __name__ == "__main__":

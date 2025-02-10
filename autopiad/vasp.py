@@ -123,15 +123,9 @@ def vasp(start_path, input_file, job_id, first_index):
     os.environ['VASP_COMMAND'] = start_path+"run_vasp_6.3.2_std_ase.sh > vasp_output.log 2>&1"
     os.environ['ASE_VASP_COMMAND'] = start_path+"run_vasp_6.3.2_std_ase.sh > vasp_output.log 2>&1"
 
-    # if not os.path.isdir(run_directory):
-    #     os.makedirs(run_directory)
-    # if not run_directory[-1] == "/":
-    #     run_directory += "/"
-
-    #check whether this task has been executed already. If so, skip it
-    # if os.path.isfile(run_directory+"b"):
-    if os.path.isfile("b"):
-        sys.exit(0)
+    # #check whether this task has been executed already. If so, skip it
+    # if os.path.isfile("b"):
+    #     sys.exit(0)
 
     #have to set this up accordingly
     try:
@@ -148,13 +142,11 @@ def vasp(start_path, input_file, job_id, first_index):
         except:
             raise
 
-    #have to get this from somewhere. get file as input
     atoms = read(input_file, index=0, format='vasp')
-
-    print("RUN DIRECTORY: ", os.getcwd(), " INPUT FILE: ", input_file)
-
     atoms.pbc = True
     atoms.calc = calc
+
+    print("RUN DIRECTORY: ", os.getcwd(), " INPUT FILE: ", input_file)
 
     #execute the calculation
     try:
@@ -164,17 +156,14 @@ def vasp(start_path, input_file, job_id, first_index):
         b = np.vstack([np.arange(first_index,first_index+1+3*len(atoms)),
                     np.full(1+3*len(atoms),job_id),
                     np.concatenate([np.array([ener]),forces])]).T
-        # np.savetxt(start_path+run_directory+"b", b, delimiter=',', fmt=['%i','%i','%.10f'])
         np.savetxt("b", b, delimiter=',', fmt=['%i','%i','%.10f'])
 
         #write the output in ASE traj format
-        # write(run_directory+"atoms_%i.traj" % job_id,images=atoms,format='traj')
         write("atoms_%i.traj" % job_id,images=atoms,format='traj')
 
         #look into using Custodian here to do error detection/validation
 
         #write a json file for fitsnap
-        # convert_xml_to_jason(run_directory+"vasprun.xml",run_directory+"atoms_%i_" % job_id )
         convert_xml_to_jason("vasprun.xml","atoms_%i_" % job_id )
 
         try:
@@ -183,10 +172,8 @@ def vasp(start_path, input_file, job_id, first_index):
                            "atoms_%i.traj" % job_id, "atoms_%i_0.json" % job_id , "features_%i.p" % job_id ]
             absolute_files_to_keep=[]
             for file in files_to_keep:
-                # absolute_files_to_keep.append(run_directory+file)
                 absolute_files_to_keep.append(file)
 
-            # output_files=glob.glob(run_directory+"*")
             output_files = glob.glob("*")
 
             for file in output_files:
@@ -194,21 +181,16 @@ def vasp(start_path, input_file, job_id, first_index):
                     #pass
                     os.remove(file)
 
-            # archive_name = run_directory + "archive"
-            # make_archive(archive_name, 'gztar', run_directory)
             archive_name = "archive"
             make_archive(archive_name, 'gztar')
 
             #Keep only some files. Clean up the rest
-            # output_files=glob.glob(run_directory+"*")
             output_files = glob.glob("*")
             files_to_keep = ["b","archive.tar.gz","atoms_%i.traj"%job_id, "atoms_%i_0.json"%job_id, "features_%i.p"%job_id]
             absolute_files_to_keep = []
             for file in files_to_keep:
-                # absolute_files_to_keep.append(run_directory+file)
                 absolute_files_to_keep.append(file)
 
-            # output_files=glob.glob(run_directory+"*")
             output_files = glob.glob("*")
 
             for file in output_files:
