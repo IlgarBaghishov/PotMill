@@ -1,10 +1,10 @@
 
-def pareto(tasks, start_path, hyperparameters_list, feature_names, mlip, 
+def pareto(tasks, start_path, hyperparameters_list, hyperparameters_list_noeweight, feature_names, mlip, 
            job_ids_for_fit, remaining_fits, trigger_fit, auto_reduce_hps, wait_for_last_fit):
 
     import pandas as pd
     import glob
-    from autopiad.tools import rcuts_to_string
+    from autopiad.tools import ace_hyperparameters_to_string, snap_hyperparameters_to_string
 
     results_dirs = glob.glob(start_path+"fits/"+str(len(job_ids_for_fit))+"/*")
     results_df = pd.DataFrame()
@@ -21,31 +21,22 @@ def pareto(tasks, start_path, hyperparameters_list, feature_names, mlip,
         results_df = pd.concat([results_df,pd.DataFrame(results_.mean().values[1:].reshape(1,-1), columns=columns_list)])
 
     cost = pd.DataFrame()
-    for i in range(len(hyperparameters_list)):
+    for i in range(len(hyperparameters_list_noeweight)):
+        costs_directory = start_path + "costs/"
         if mlip == "ACE":
-            rcuts, nmaxes, lmaxes, _ = hyperparameters_list[i]
-            nindcs_to_bodyorder = {5:2, 8:3, 12:4, 16:5, 20:6, 24:7}
-            feature_indices = []
-            for i, lst in enumerate(feature_names):
-                if len(lst)==1:
-                    feature_indices.append(i)
-                else:
-                    nu = nindcs_to_bodyorder[len(lst)]
-                    if all(lst[nu+1+k]<=nmaxes[nu-2] and lst[2*nu+k]<=lmaxes[nu-2] for k in range(nu-1)):
-                        feature_indices.append(i)
-            feature_size = len(feature_indices)
+            rcuts, nmaxes, lmaxes = hyperparameters_list_noeweight[i]
+            values_list = rcuts + nmaxes + lmaxes
+            costs_directory += ace_hyperparameters_to_string(hyperparameters_list_noeweight[i], delimiter='_', w_eweight=False)
         if mlip == "SNAP":
-            rcuts, twojmaxes, _ = hyperparameters_list[i]
-            feature_size = len([i for i, lst in enumerate(feature_names) if len(lst)==1 or all(value <= twojmaxes[0] for value in lst[1:])])
-        rcuts_str = rcuts_to_string(rcuts,"_")
-        with open(start_path+"features/"+rcuts_str+"/flux.out", "r") as f:
+            rcuts, twojmaxes = hyperparameters_list_noeweight[i]
+            values_list = rcuts + twojmaxes
+            costs_directory += snap_hyperparameters_to_string(hyperparameters_list_noeweight[i], delimiter='_', w_eweight=False)
+        with open(costs_directory+"/flux.out", "r") as f:
             lines = f.readlines()
             for line in lines:
                 if "process_configs" in line:
-                    if mlip == "ACE": values_list = rcuts + nmaxes + lmaxes
-                    if mlip == "SNAP": values_list = rcuts + twojmaxes
-                    cost=pd.concat([cost,pd.DataFrame([values_list+[float(line.split()[2])*feature_size/len(feature_names)]],
-                                                    columns=columns_list[:-9]+['cost'])])
+                    cost=pd.concat([cost,pd.DataFrame([values_list+[float(line.split()[2])]],
+                                                      columns=columns_list[:-9]+['cost'])])
 
     results_df = results_df.merge(cost, how='inner', on=columns_list[:-9])
 

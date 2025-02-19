@@ -5,51 +5,47 @@ from itertools import product
 
 
 def rcuts_to_string(rcuts, delimiter=" "):
-    if isinstance(rcuts,int) or isinstance(rcuts,float):
-        return str(rcuts)
-    if isinstance(rcuts,list):
-        return delimiter.join([str(rcut) for rcut in rcuts])
+    if isinstance(rcuts,int) or isinstance(rcuts,float): return str(rcuts)
+    if isinstance(rcuts,list): return delimiter.join([str(rcut) for rcut in rcuts])
 
 
 def nmaxes_to_string(nmaxes, delimiter=" "):
-    if isinstance(nmaxes,int):
-        return str(nmaxes)
-    if isinstance(nmaxes,list):
-        return delimiter.join([str(nmax) for nmax in nmaxes])
+    if isinstance(nmaxes,int): return str(nmaxes)
+    if isinstance(nmaxes,list): return delimiter.join([str(nmax) for nmax in nmaxes])
 
 
 def lmaxes_to_string(lmaxes, delimiter=" "):
-    if isinstance(lmaxes,int):
-        return str(lmaxes)
-    if isinstance(lmaxes,list):
-        return delimiter.join([str(lmax) for lmax in lmaxes])
+    if isinstance(lmaxes,int): return str(lmaxes)
+    if isinstance(lmaxes,list): return delimiter.join([str(lmax) for lmax in lmaxes])
 
 
 def twojmaxes_to_string(twojmaxes, delimiter=" "):
-    if isinstance(twojmaxes,int):
-        return str(twojmaxes)
-    if isinstance(twojmaxes,list):
-        return delimiter.join([str(twojmax) for twojmax in twojmaxes])
+    if isinstance(twojmaxes,int): return str(twojmaxes)
+    if isinstance(twojmaxes,list): return delimiter.join([str(twojmax) for twojmax in twojmaxes])
 
 
-def ace_hyperparameters_to_string(hyperparameters, delimiter=" "):
+def ace_hyperparameters_to_string(hyperparameters, delimiter=" ", w_eweight=True):
     rcut_string = rcuts_to_string(hyperparameters[0], delimiter)
     nmax_string = nmaxes_to_string(hyperparameters[1], delimiter)
     lmax_string = lmaxes_to_string(hyperparameters[2], delimiter)
-    return rcut_string + delimiter + nmax_string + delimiter + lmax_string + delimiter + "%.1f"%hyperparameters[3]
+    if w_eweight:
+        return rcut_string + delimiter + nmax_string + delimiter + lmax_string + delimiter + "%.1f"%hyperparameters[3]
+    else:
+        return rcut_string + delimiter + nmax_string + delimiter + lmax_string
 
 
-def snap_hyperparameters_to_string(hyperparameters, delimiter=" "):
+def snap_hyperparameters_to_string(hyperparameters, delimiter=" ", w_eweight=True):
     rcut_string = rcuts_to_string(hyperparameters[0], delimiter)
     twojmax_string = twojmaxes_to_string(hyperparameters[1], delimiter)
-    return rcut_string + delimiter + twojmax_string + delimiter + "%.1f"%hyperparameters[2]
+    if w_eweight:
+        return rcut_string + delimiter + twojmax_string + delimiter + "%.1f"%hyperparameters[2]
+    else:
+        return rcut_string + delimiter + twojmax_string
 
 
 def create_rcut_range(min_rcut,max_rcut,num_rcut):
     if isinstance(min_rcut,list):
-        rcut_range = []
-        for i in range(len(min_rcut)):
-            rcut_range.append(np.linspace(min_rcut[i],max_rcut[i],num_rcut[i]).tolist())
+        rcut_range = [np.linspace(min_rcut[i],max_rcut[i],num_rcut[i]).tolist() for i in range(len(min_rcut))]
         rcut_range = [list(rcut_list) for rcut_list in product(*rcut_range)]
     if isinstance(min_rcut,float) or isinstance(min_rcut,int):
         rcut_range = np.linspace(min_rcut,max_rcut,num_rcut).reshape(-1,1).tolist()
@@ -58,9 +54,7 @@ def create_rcut_range(min_rcut,max_rcut,num_rcut):
 
 def create_nmax_range(min_nmax,max_nmax):
     if isinstance(min_nmax,list):
-        nmax_range = []
-        for i in range(len(min_nmax)):
-            nmax_range.append(np.arange(min_nmax[i],max_nmax[i]+1))
+        nmax_range = [np.arange(min_nmax[i],max_nmax[i]+1) for i in range(len(min_nmax))]
         # nmax_range = np.vstack(nmax_range).T.tolist()
         nmax_range = [list(nmax_list) for nmax_list in product(*nmax_range)]
     if isinstance(min_nmax,int):   
@@ -70,9 +64,7 @@ def create_nmax_range(min_nmax,max_nmax):
 
 def create_lmax_range(min_lmax,max_lmax):
     if isinstance(min_lmax,list):
-        lmax_range = []
-        for i in range(len(min_lmax)):
-            lmax_range.append(np.arange(min_lmax[i],max_lmax[i]+1))
+        lmax_range = [np.arange(min_lmax[i],max_lmax[i]+1) for i in range(len(min_lmax))]
         # lmax_range = np.vstack(lmax_range).T.tolist()
         lmax_range = [list(lmax_list) for lmax_list in product(*lmax_range)]
     if isinstance(min_lmax,int):   
@@ -82,9 +74,7 @@ def create_lmax_range(min_lmax,max_lmax):
 
 def create_twojmax_range(min_twojmax,max_twojmax):
     if isinstance(min_twojmax,list):
-        twojmax_range = []
-        for i in range(len(min_twojmax)):
-            twojmax_range.append(np.arange(min_twojmax[i],max_twojmax[i]+1))
+        twojmax_range = [np.arange(min_twojmax[i],max_twojmax[i]+1) for i in range(len(min_twojmax))]
         twojmax_range = np.vstack(twojmax_range).T.tolist()
         # twojmax_range = [list(twojmax_list) for twojmax_list in product(*twojmax_range)]
     if isinstance(min_twojmax,int):   

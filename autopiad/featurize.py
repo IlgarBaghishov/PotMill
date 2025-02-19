@@ -1,25 +1,17 @@
 
-def featurize(config, fitsnap_config, rcuts, start_path):
+def featurize(atoms_traj, config, fitsnap_config, rcuts, only_cost=False):
 
     import os
     import numpy as np
     from mpi4py import MPI
     from fitsnap3lib.fitsnap import FitSnap
     from fitsnap3lib.scrapers.ase_funcs import ase_scraper
-    import pandas as pd
     from autopiad.tools import rcuts_to_string
     
     comm = MPI.COMM_WORLD
     rank = comm.Get_rank()
     size = comm.Get_size()
     
-    try:
-        atoms_traj = pd.read_hdf(start_path + config['DATA']['data_path'])['ase_atoms'].to_list()[:500]
-    except:
-        try:
-            atoms_traj = pd.read_pickle(start_path+config["DATA"]["data_path"], compression="gzip")['ase_atoms'].to_list()[:500]
-        except:
-            raise
     configs_num = len(atoms_traj)
     ratio = configs_num//size
     rem = configs_num%size
@@ -28,9 +20,8 @@ def featurize(config, fitsnap_config, rcuts, start_path):
 
     print("rcuts = " + rcuts_to_string(rcuts))
     if config['FitSNAP']['mlip'] == "ACE":
-        # fitsnap_config["ACE"]["rcutfac"] = rcuts_to_string(rcuts)
         if len(rcuts) == 1:
-            fitsnap_config["ACE"]["rcutfac"] = rcuts_to_string([rcuts[0] for i in range(int(fitsnap_config["ACE"]["numTypes"])**2)])
+            fitsnap_config["ACE"]["rcutfac"] = rcuts_to_string(rcuts*(int(fitsnap_config["ACE"]["numTypes"])**2))
         else:
             fitsnap_config["ACE"]["rcutfac"] = rcuts_to_string(rcuts)
     elif config['FitSNAP']['mlip'] == "SNAP":
@@ -43,23 +34,23 @@ def featurize(config, fitsnap_config, rcuts, start_path):
     comm.Barrier()
 
     if rank == 0:
-        np.save("a.npy", fs.pt.shared_arrays["a"].array)
-    os.system("rm -rf coupling_coefficients.yace *.pickle")
-    
-    bnames = []
-    if config['FitSNAP']['mlip'] == "ACE":
-        numtypes = fs.config.sections["ACE"].numtypes
-        ncoeff = len(fs.config.sections["ACE"].blist)//numtypes
-        for ielem in range(numtypes):
-            bstart = ielem * ncoeff
-            bstop = bstart + ncoeff
-            bnames += [[0]] + fs.config.sections["ACE"].blist[bstart:bstop]
-    elif config['FitSNAP']['mlip'] == "SNAP":
-        numtypes = fs.config.sections["BISPECTRUM"].numtypes
-        ncoeff = fs.config.sections["BISPECTRUM"].ncoeff
-        for ielem in range(numtypes):
-            bstart = ielem * ncoeff
-            bstop = bstart + ncoeff
-            bnames += [[0]] + fs.config.sections["BISPECTRUM"].blist[bstart:bstop]
-    
-    return bnames
+        os.system("rm -rf coupling_coefficients.yace *.pickle")
+        if not only_cost:
+            np.save("a.npy", fs.pt.shared_arrays["a"].array)
+        
+            bnames = []
+            if config['FitSNAP']['mlip'] == "ACE":
+                numtypes = fs.config.sections["ACE"].numtypes
+                ncoeff = len(fs.config.sections["ACE"].blist)//numtypes
+                for ielem in range(numtypes):
+                    bstart = ielem * ncoeff
+                    bstop = bstart + ncoeff
+                    bnames += [[0]] + fs.config.sections["ACE"].blist[bstart:bstop]
+            elif config['FitSNAP']['mlip'] == "SNAP":
+                numtypes = fs.config.sections["BISPECTRUM"].numtypes
+                ncoeff = fs.config.sections["BISPECTRUM"].ncoeff
+                for ielem in range(numtypes):
+                    bstart = ielem * ncoeff
+                    bstop = bstart + ncoeff
+                    bnames += [[0]] + fs.config.sections["BISPECTRUM"].blist[bstart:bstop]
+            return bnames
