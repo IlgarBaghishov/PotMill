@@ -3,15 +3,15 @@ numTypes = 1
 mumax = 1
 type = Be
 lambda = 1.5
-rcutfac = 4.5
+rcutfac = 4
 #rcinner = 1.0
 #drcinner = 0.01
 bzeroflag = 0
 ranks = 1 2
 lmin = 0 0
-lmax =  1 2
-nmax =  22 3
-nmaxbase = 22
+lmax =  0 1
+nmax =  6 3
+#nmaxbase = 10
 
 [CALCULATOR]
 calculator = LAMMPSPACE

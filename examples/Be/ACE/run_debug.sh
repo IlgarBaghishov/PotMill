@@ -2,7 +2,7 @@
 #SBATCH -J test
 #SBATCH -A w25_foundation_g
 #SBATCH -t 01:30:00
-#SBATCH -N 4
+#SBATCH -N 2
 #SBATCH -C gpu40
 #SBATCH -p gpu_debug
 #SBATCH --reservation=gpu_debug

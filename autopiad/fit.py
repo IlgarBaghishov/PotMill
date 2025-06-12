@@ -1,5 +1,5 @@
 
-def fit(features_directory, hyperparameters, feature_names, mlip, train_fraction = 0.7, n_fold = 3, rcond = 1e-10):
+def fit(features_directory, hyperparameters, feature_names, mlip, train_fraction = 0.7, n_fold = 3, rcond = 1e-13):
 
     import numpy as np
     import pandas as pd
@@ -57,14 +57,10 @@ def fit(features_directory, hyperparameters, feature_names, mlip, train_fraction
         b_train = b_vect[2].values[train_index]
         b_test = b_vect[2].values[test_index]
         
-        energy_selector_train = np.where(np.in1d(train_index, energy_selector))[0]
-        energy_selector_test = np.where(np.in1d(test_index, energy_selector))[0]
-        force_selector_train = np.where(np.in1d(train_index, force_selector))[0]
-        force_selector_test = np.where(np.in1d(test_index, force_selector))[0]
-        # energy_selector_train = [i for i in range(len(train_index)) if train_index[i] in energy_selector]
-        # energy_selector_test = [i for i in range(len(test_index)) if test_index[i] in energy_selector]
-        # force_selector_train = [i for i in range(len(train_index)) if train_index[i] in force_selector]
-        # force_selector_test = [i for i in range(len(test_index)) if test_index[i] in force_selector]
+        energy_selector_train = np.in1d(train_index, energy_selector)
+        energy_selector_test = np.in1d(test_index, energy_selector)
+        force_selector_train = np.in1d(train_index, force_selector)
+        force_selector_test = np.in1d(test_index, force_selector)
         
         eweights_train = np.exp(-b_train[energy_selector_train]/5)
         eweights_train /= np.sum(eweights_train)
@@ -81,6 +77,11 @@ def fit(features_directory, hyperparameters, feature_names, mlip, train_fraction
         fweights_test = 1./np.maximum(3.,np.fabs(b_test[force_selector_test]))
         fweights_test /= np.sum(fweights_test)
         fweights_test *= 1.
+
+        # eweights_train = np.ones_like(eweights_train)
+        # fweights_train = np.ones_like(fweights_train)
+        # eweights_test = np.ones_like(eweights_test)
+        # fweights_test = np.ones_like(fweights_test)
 
         a_e_train_w = np.multiply(eweights_train[:,None],a_train[energy_selector_train])
         a_f_train_w = np.multiply(fweights_train[:,None],a_train[force_selector_train])

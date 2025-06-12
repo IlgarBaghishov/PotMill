@@ -1,9 +1,9 @@
 import numpy as np
 import os, glob, sys, json
 import xml.etree.ElementTree as ET
-from ase.calculators.vasp import Vasp
 from ase.io import read, write
 from shutil import make_archive
+from ase.calculators.lammpsrun import LAMMPS
 
 
 def write_json(data, jsonfilename):
@@ -117,30 +117,28 @@ def convert_xml_to_jason(xml_file, JSON_file):
             config_number += 1 
 
 
-def vasp(start_path, input_file, job_id, first_index):
+def lammps(start_path, input_file, job_id, first_index):
 
-    os.environ['VASP_PP_PATH'] = "/users/baghishov/pyiron/resources/vasp/potentials/"
-    os.environ['VASP_COMMAND'] = start_path+"run_vasp_6.3.2_std_ase.sh > vasp_output.log 2>&1"
-    os.environ['ASE_VASP_COMMAND'] = start_path+"run_vasp_6.3.2_std_ase.sh > vasp_output.log 2>&1"
+    print("hey")
+    os.environ['ASE_LAMMPSRUN_COMMAND'] = start_path+"run_vasp_6.3.2_std_ase.sh"
+    # os.environ['ASE_LAMMPSRUN_COMMAND']="flux run -n 1 -c 1 -g 0 /users/baghishov/codes/lammps/build-fitsnap/lmp"
+    # os.environ['ASE_LAMMPSRUN_COMMAND']="mpirun -np 1 /users/baghishov/codes/lammps/build-fitsnap/lmp"
+    # os.environ['ASE_LAMMPSRUN_COMMAND']="/users/baghishov/codes/lammps/build-fitsnap/lmp"
 
     # #check whether this task has been executed already. If so, skip it
     # if os.path.isfile("b"):
     #     sys.exit(0)
 
     #have to set this up accordingly
-    try:
-        calc = Vasp(xc='pbe',  # Select exchange-correlation functional
-                    encut=300, # Plane-wave cutoff
-                    ismear=1, lwave=False, lcharg=False, prec='Normal', nelm=100, ediff=1e-6, kspacing=1.0,
-                    setups={'Re':'','W':''})#, directory=run_directory)  # setups='recommended'
-    except:
-        try:
-            calc = Vasp(xc='pbe',  # Select exchange-correlation functional
-                        encut=500, # Plane-wave cutoff
-                        ismear=1, lwave=False, lcharg=False, prec='Normal', nelm=100, ediff=1e-6, kspacing=0.5,
-                        setups='recommended')#, directory=run_directory)  # setups='recommended'
-        except:
-            raise
+    # try:
+    atom_type_mapping = ["Be"]
+    ace_file = start_path + "pot.yace"
+    pair_coeff = ['* * ' + ace_file + ' ' + ' '.join(atom_type_mapping)]
+    files = [ace_file]
+    parameters = {'pair_style': 'pace', 'pair_coeff': pair_coeff}
+    calc = LAMMPS(files=files, **parameters, keep_tmp_files=True, tmp_dir="lammps_temp", log_file="log.lammps")
+    # except:
+    #     raise
 
     atoms = read(input_file, index=0, format='vasp')
     atoms.pbc = True
@@ -149,56 +147,57 @@ def vasp(start_path, input_file, job_id, first_index):
     print("RUN DIRECTORY: ", os.getcwd(), " INPUT FILE: ", input_file)
 
     #execute the calculation
-    try:
-        ener = atoms.get_potential_energy()
-        forces = atoms.get_forces().ravel()
+    # try:
+    ener = atoms.get_potential_energy()
+    print("hi")
+    forces = atoms.get_forces().ravel()
 
-        n_atoms = len(atoms)
-        b = np.vstack([np.arange(first_index,first_index+1+3*n_atoms),
-                       np.full(1+3*n_atoms,job_id),
-                       np.concatenate([np.array([ener])/n_atoms,forces])]).T
-        np.savetxt("b", b, delimiter=',', fmt=['%i','%i','%.10f'])
+    n_atoms = len(atoms)
+    b = np.vstack([np.arange(first_index,first_index+1+3*n_atoms),
+                    np.full(1+3*n_atoms,job_id),
+                    np.concatenate([np.array([ener])/n_atoms,forces])]).T
+    np.savetxt("b", b, delimiter=',', fmt=['%i','%i','%.10f'])
 
-        #write the output in ASE traj format
-        write("atoms_%i.traj" % job_id,images=atoms,format='traj')
+    #write the output in ASE traj format
+    write("atoms_%i.traj" % job_id,images=atoms,format='traj')
 
-        #look into using Custodian here to do error detection/validation
+    # #look into using Custodian here to do error detection/validation
 
-        #write a json file for fitsnap
-        convert_xml_to_jason("vasprun.xml","atoms_%i_" % job_id )
+    # #write a json file for fitsnap
+    # convert_xml_to_jason("vasprun.xml","atoms_%i_" % job_id )
 
-        try:
-            #do some cleanup
-            files_to_keep=["b","INCAR","OUTCAR","POSCAR","vasprun.xml","vasp.out","vasp_output.log",
-                           "atoms_%i.traj" % job_id, "atoms_%i_0.json" % job_id , "features_%i.p" % job_id ]
-            absolute_files_to_keep=[]
-            for file in files_to_keep:
-                absolute_files_to_keep.append(file)
+    # try:
+    #     #do some cleanup
+    #     files_to_keep=["b","INCAR","OUTCAR","POSCAR","vasprun.xml","vasp.out","vasp_output.log",
+    #                    "atoms_%i.traj" % job_id, "atoms_%i_0.json" % job_id , "features_%i.p" % job_id ]
+    #     absolute_files_to_keep=[]
+    #     for file in files_to_keep:
+    #         absolute_files_to_keep.append(file)
 
-            output_files = glob.glob("*")
+    #     output_files = glob.glob("*")
 
-            for file in output_files:
-                if not file in absolute_files_to_keep:
-                    #pass
-                    os.remove(file)
+    #     for file in output_files:
+    #         if not file in absolute_files_to_keep:
+    #             #pass
+    #             os.remove(file)
 
-            archive_name = "archive"
-            make_archive(archive_name, 'gztar')
+    #     archive_name = "archive"
+    #     make_archive(archive_name, 'gztar')
 
-            #Keep only some files. Clean up the rest
-            output_files = glob.glob("*")
-            files_to_keep = ["b","archive.tar.gz","atoms_%i.traj"%job_id, "atoms_%i_0.json"%job_id, "features_%i.p"%job_id]
-            absolute_files_to_keep = []
-            for file in files_to_keep:
-                absolute_files_to_keep.append(file)
+    #     #Keep only some files. Clean up the rest
+    #     output_files = glob.glob("*")
+    #     files_to_keep = ["b","archive.tar.gz","atoms_%i.traj"%job_id, "atoms_%i_0.json"%job_id, "features_%i.p"%job_id]
+    #     absolute_files_to_keep = []
+    #     for file in files_to_keep:
+    #         absolute_files_to_keep.append(file)
 
-            output_files = glob.glob("*")
+    #     output_files = glob.glob("*")
 
-            for file in output_files:
-                if not file in absolute_files_to_keep:
-                    os.remove(file)
-            
-        except:
-            raise
-    except:
-        raise
+    #     for file in output_files:
+    #         if not file in absolute_files_to_keep:
+    #             os.remove(file)
+        
+    # except:
+    #     raise
+    # except:
+    #     raise

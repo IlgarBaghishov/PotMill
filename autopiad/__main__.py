@@ -4,8 +4,10 @@ from ase.io import write
 from autopiad.tools import create_rcut_range, rcuts_to_string, nmaxes_to_string, lmaxes_to_string, twojmaxes_to_string
 from autopiad.tools import ace_hyperparameters_to_string, snap_hyperparameters_to_string
 from autopiad.tools import combined_ace_hyperparameters, combined_snap_hyperparameters, parse_inputfile, configparse
+from autopiad.entropy.binary.optimizer import EntropyMaximizer 
 from autopiad.featurize import featurize
 from autopiad.vasp import vasp
+from autopiad.lammps import lammps
 from autopiad.fake_vasp import fake_vasp
 from autopiad.fit import fit
 from autopiad.pareto import pareto
@@ -31,8 +33,9 @@ def main():
 
     mlip = config["FitSNAP"]["mlip"]
     resume_mode = config["MODE"]["resume"]
-    vasp_mode = config["MODE"]["vasp"]
+    entropy_mode = config["MODE"]["entropy"]
     feature_mode = config["MODE"]["featurize"]
+    vasp_mode = config["MODE"]["vasp"]
     fit_mode = config["MODE"]["fit"]
     pareto_mode = config["MODE"]["pareto"]
     fit_freq = config["MODE"]["fit_freq"]
@@ -66,6 +69,9 @@ def main():
         os.system("rm -rf "+start_path+"vasp-energy")
         os.mkdir(start_path+"vasp-energy")
 
+    # if entropy_mode:
+    #     em = EntropyMaximizer()
+    # else:
     # scan the available configurations and sort them by size
     try:
         df = pd.read_hdf(start_path + config["DATA"]["data_path"]).iloc[:500,:]
@@ -190,6 +196,8 @@ def main():
                     #                 resource_dict={"cores": 1, "gpus_per_core": 1, "num_nodes": 1, "cwd": vasp_directory})
                     fs = exe.submit(vasp, start_path, start_path+input_file, task, first_index[task],
                                     resource_dict={"cores": 1, "gpus_per_core": 0, "num_nodes": 1, "cwd": vasp_directory})
+                    # fs = exe.submit(lammps, start_path, start_path+input_file, task, first_index[task],
+                    #                 resource_dict={"cores": 1, "gpus_per_core": 0, "num_nodes": 1, "cwd": vasp_directory})
                     fs.task_ = task
                     vasp_futures.add(fs)
                     in_process_tasks.append(task)
@@ -222,7 +230,7 @@ def main():
             rl = flux.resource.list.resource_list(handle).get()
             n_cores_free = rl.free.ncores
             n_gpus_free = rl.free.ngpus
-            n_excess_cores_free = n_cores_free - n_gpus_free
+            # n_excess_cores_free = n_cores_free - n_gpus_free
 
 
             # print("PREPARING B.CSV FOR THE FIT")
@@ -241,8 +249,10 @@ def main():
             # print("SCHEDULING FITTING TASKS")
             if (trigger_fit == 2 and len(remaining_fits) > 0) and (len(in_process_featurizations)==0):
                 #save to a file the configurations that have energies already from completed tasks
-                n_excess_cores_free = rl.free.ncores - 2*rl.free.ngpus - len(rs.nodelist)
-                while n_excess_cores_free>=ncores_per_fit and len(remaining_fits)>0 and (len(in_process_fits)<((all_ncores-all_ngpus)//ncores_per_fit)):
+                # n_excess_cores_free = rl.free.ncores - 2*rl.free.ngpus - len(rs.nodelist)
+                ncores_free = all_ncores - 2*all_ngpus - len(in_process_featurizations)*ncores_per_featurization
+                ncores_free -= len(in_process_fits)*ncores_per_fit + len(in_process_costs) + len(rs.nodelist)
+                while ncores_free>=ncores_per_fit and len(remaining_fits)>0:  # and (len(in_process_fits)<((all_ncores-all_ngpus)//ncores_per_fit)):
                     print("Starting the fits...")
                     i = remaining_fits.pop(0)
                     fit_directory = start_path + "fits/" + str(len(job_ids_for_fit))
@@ -260,7 +270,7 @@ def main():
                     fs.task_ = i
                     fitting_futures.add(fs)
                     in_process_fits.append(i)
-                    n_excess_cores_free -= ncores_per_fit
+                    ncores_free -= ncores_per_fit
                 
                 if len(remaining_fits) == 0:
                     if len(remaining_tasks) != 0 or len(in_process_tasks) != 0 or wait_for_last_fit == 1:
@@ -297,12 +307,6 @@ def main():
             if feature_mode:
                 featurizations_done, featurization_futures = concurrent.futures.wait(featurization_futures, timeout=0.1)
                 for fut in featurizations_done:
-                    # if ncores_per_featurization > 1:
-                    #     feature_names_list = fut.result()
-                    #     assert all(feature_names == feature_names_list[0] for feature_names in feature_names_list)
-                    #     feature_names = feature_names_list[0]
-                    # elif ncores_per_featurization == 1:
-                    #     feature_names = fut.result()
                     feature_names = fut.result()[0]
                     print(len(feature_names),feature_names)
                     completed_featurizations.append(fut.task_)

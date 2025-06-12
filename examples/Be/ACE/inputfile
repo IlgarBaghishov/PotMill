@@ -1,7 +1,8 @@
 [MODE]
 resume = 0
-vasp = 1
+entropy = 1
 featurize = 1
+vasp = 1
 fit = 1
 pareto = 1
 fit_freq = 100
