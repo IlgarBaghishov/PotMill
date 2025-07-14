@@ -24,6 +24,16 @@ def twojmaxes_to_string(twojmaxes, delimiter=" "):
     if isinstance(twojmaxes,list): return delimiter.join([str(twojmax) for twojmax in twojmaxes])
 
 
+def hyperparameters_to_string(mlip, hyperparameters, delimiter=" ", w_eweight=True):
+    if mlip.upper() == "ACE":
+        ace_hyperparameters_to_string(hyperparameters, delimiter, w_eweight)
+    elif mlip.upper() == "SNAP":
+        snap_hyperparameters_to_string(hyperparameters, delimiter, w_eweight)
+    else:
+        print("MLIP types supported are only ACE and SNAP")
+
+
+
 def ace_hyperparameters_to_string(hyperparameters, delimiter=" ", w_eweight=True):
     rcut_string = rcuts_to_string(hyperparameters[0], delimiter)
     nmax_string = nmaxes_to_string(hyperparameters[1], delimiter)

@@ -1,5 +1,6 @@
 
-def fit(features_directory, hyperparameters, feature_names, mlip, train_fraction = 0.7, n_fold = 3, rcond = 1e-13):
+def fit(features_directory, feature_names, vasp_IDs_ready_for_fit, hyperparameters,
+        mlip, train_fraction = 0.7, n_fold = 3, rcond = 1e-13):
 
     import numpy as np
     import pandas as pd
@@ -22,7 +23,8 @@ def fit(features_directory, hyperparameters, feature_names, mlip, train_fraction
         feature_indices = [i for i, lst in enumerate(feature_names) if len(lst)==1 or all(value <= twojmaxes[0] for value in lst[1:])]
     
     print(len(feature_indices), len(feature_names))
-    b_vect = pd.read_csv(features_directory + "b.csv", index_col=0, header=None).sort_index()
+    b_size = len(vasp_IDs_ready_for_fit)
+    b_vect = pd.read_csv(f"{features_directory}b{b_size}.csv", index_col=0, header=None).sort_index()
     b_vect_index = b_vect.index.to_numpy()
     a_matr_map = np.load(features_directory + rcuts_to_string(rcuts,delimiter="_") + "/a.npy", mmap_mode='r')
     a_matr = a_matr_map[b_vect_index[:, None],feature_indices]
@@ -142,3 +144,5 @@ def fit(features_directory, hyperparameters, feature_names, mlip, train_fraction
         # print("Binned errors", binned_errors)
 
     # print("Time elapsed: %.5f seconds" % (time.time()-start_time))
+    
+    return hyperparameters

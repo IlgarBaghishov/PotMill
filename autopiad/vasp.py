@@ -202,3 +202,5 @@ def vasp(start_path, input_file, job_id, first_index):
             raise
     except:
         raise
+
+    return job_id

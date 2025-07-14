@@ -1,12 +1,12 @@
-
-def pareto(tasks, start_path, hyperparameters_list, hyperparameters_list_noeweight, feature_names, mlip, 
-           job_ids_for_fit, remaining_fits, trigger_fit, auto_reduce_hps, wait_for_last_fit):
+def pareto(start_path, vasp_batch_idx, hyperparameters_list, hyperparameters_list_noeweight, mlip):
+# def pareto(tasks, start_path, hyperparameters_list, hyperparameters_list_noeweight, feature_names, mlip, 
+#            vasp_IDs_ready_for_fit, remaining_fits, trigger_fit, auto_reduce_hps, wait_for_last_fit):
 
     import pandas as pd
     import glob
     from autopiad.tools import ace_hyperparameters_to_string, snap_hyperparameters_to_string
 
-    results_dirs = glob.glob(start_path+"fits/"+str(len(job_ids_for_fit))+"/*")
+    results_dirs = glob.glob(f"{start_path}fits/{vasp_batch_idx}/*")
     results_df = pd.DataFrame()
     for results_dir in results_dirs:
         results_ = pd.read_csv(results_dir+"/results.csv", header=None)
@@ -51,38 +51,38 @@ def pareto(tasks, start_path, hyperparameters_list, hyperparameters_list_noeweig
 
     results_df["pareto_front"] = 0
     results_df.loc[minima_list, "pareto_front"] = 1
-    results_df.to_csv(start_path+"pareto-front/results_%i.csv" % len(job_ids_for_fit), index=False)
+    results_df.to_csv(start_path+"pareto-front/results_%i.csv" % vasp_batch_idx, index=False)
 
-    if len(job_ids_for_fit) > 0.2*len(tasks) and auto_reduce_hps:
-        file_number_count=0
-        results_df_list = []
-        for file_name in glob.glob(start_path+"pareto-front/results_*.csv"):
-            # if int(file_name.split('/')[-1][8:-4]) > 0.1*len(tasks):
-            results_df_list.append([int(file_name.split('/')[-1][8:-4]),pd.read_csv(file_name)])
-            if int(file_name.split('/')[-1][8:-4]) < 0.2*len(tasks):
-                file_number_count += 1
-        results_df_list.sort(key=lambda x: x[0])
-        results_df_list = [i[1] for i in results_df_list]
-        results_df_list = results_df_list[-file_number_count:]
-        if len(results_df_list) == 0:
-            results_df_list = [results_df]
-        pareto_count = []
-        for hyperparameters in hyperparameters_list:
-            pareto_count.append(0)
-            for results_df_i in results_df_list:
-                df_query_str = [columns_list[j]+'==%.3f'%hyperparameters[0][j] for j in range(len(hyperparameters[0]))]
-                df_query_str.extend([columns_list[j+len(hyperparameters[0])]+'==%i'%hyperparameters[1][j] for j in range(len(hyperparameters[1]))])
-                df_query_str.append('eweight==%.3f'%hyperparameters[2])
-                pareto_count[-1] += results_df_i.query(" and ".join(df_query_str))['pareto_front'].iloc[0]
-        for i in reversed(range(len(pareto_count))):
-            if pareto_count[i] == 0:
-                hyperparameters_list.pop(i)
+    # if len(job_ids_for_fit) > 0.2*len(tasks) and auto_reduce_hps:
+    #     file_number_count=0
+    #     results_df_list = []
+    #     for file_name in glob.glob(start_path+"pareto-front/results_*.csv"):
+    #         # if int(file_name.split('/')[-1][8:-4]) > 0.1*len(tasks):
+    #         results_df_list.append([int(file_name.split('/')[-1][8:-4]),pd.read_csv(file_name)])
+    #         if int(file_name.split('/')[-1][8:-4]) < 0.2*len(tasks):
+    #             file_number_count += 1
+    #     results_df_list.sort(key=lambda x: x[0])
+    #     results_df_list = [i[1] for i in results_df_list]
+    #     results_df_list = results_df_list[-file_number_count:]
+    #     if len(results_df_list) == 0:
+    #         results_df_list = [results_df]
+    #     pareto_count = []
+    #     for hyperparameters in hyperparameters_list:
+    #         pareto_count.append(0)
+    #         for results_df_i in results_df_list:
+    #             df_query_str = [columns_list[j]+'==%.3f'%hyperparameters[0][j] for j in range(len(hyperparameters[0]))]
+    #             df_query_str.extend([columns_list[j+len(hyperparameters[0])]+'==%i'%hyperparameters[1][j] for j in range(len(hyperparameters[1]))])
+    #             df_query_str.append('eweight==%.3f'%hyperparameters[2])
+    #             pareto_count[-1] += results_df_i.query(" and ".join(df_query_str))['pareto_front'].iloc[0]
+    #     for i in reversed(range(len(pareto_count))):
+    #         if pareto_count[i] == 0:
+    #             hyperparameters_list.pop(i)
         
-        if len(remaining_fits)!=0 and trigger_fit==0:
-            remaining_fits = [i for i in range(len(hyperparameters_list))]
+    #     if len(remaining_fits)!=0 and trigger_fit==0:
+    #         remaining_fits = [i for i in range(len(hyperparameters_list))]
 
 
-    if len(remaining_fits) == 0 and wait_for_last_fit == 0:
-        return 1
+    # if len(remaining_fits) == 0 and wait_for_last_fit == 0:
+    #     return 1
     
     return 0

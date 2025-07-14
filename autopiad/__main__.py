@@ -2,7 +2,7 @@ import pandas as pd
 import os, copy, time, pickle
 from ase.io import write
 from autopiad.tools import create_rcut_range, rcuts_to_string, nmaxes_to_string, lmaxes_to_string, twojmaxes_to_string
-from autopiad.tools import ace_hyperparameters_to_string, snap_hyperparameters_to_string
+from autopiad.tools import hyperparameters_to_string
 from autopiad.tools import combined_ace_hyperparameters, combined_snap_hyperparameters, parse_inputfile, configparse
 from autopiad.entropy.binary.optimizer import EntropyMaximizer 
 from autopiad.featurize import featurize
@@ -14,7 +14,27 @@ from autopiad.pareto import pareto
 import flux
 import concurrent.futures
 import flux.job
-from executorlib import FluxJobExecutor, SingleNodeExecutor
+from executorlib import FluxJobExecutor
+
+
+def check_and_print_status(futures, name, total):
+    # print(f"Number of {name}_futures was {len(futures)} and they are: {futures}")
+    done, futures = concurrent.futures.wait(futures, timeout=0.1)
+    # print(f"Number of {name}_futures is {len(futures)} and they are: {futures}")
+    if len(done)!=0:
+        print(f"{len(futures)} {name}S REMAINING  --- {total-len(futures)} {name}S FINISHED  --- {total} {name}S TOTAL")
+    return futures
+
+
+def combine_b(start_path, vasp_IDs_finished, vasp_IDs_ready_for_fit):
+    print("Starting b.csv file preparation for the fit...")
+    new_vasp_IDs_finished = ["vasp-em_%i/b" % job_id for job_id in vasp_IDs_finished if job_id not in vasp_IDs_ready_for_fit]
+    all_b_files = " ".join(new_vasp_IDs_finished)
+    print(all_b_files)
+    len1, len2 = len(vasp_IDs_ready_for_fit), len(vasp_IDs_finished)
+    os.system(f"cat {start_path}features/b{len1}.csv {all_b_files} > {start_path}features/b{len2}.csv")
+    vasp_IDs_ready_for_fit = copy.copy(vasp_IDs_finished)
+    return vasp_IDs_ready_for_fit
 
 
 def main():
@@ -84,278 +104,135 @@ def main():
             raise
     index0 = 0
     index1 = df.shape[0]
-    tasks = []
+    vasps = []
     first_index = [0]
     if not df.index.equals(pd.RangeIndex(0,df.shape[0],1)):
         df.reset_index(inplace=True)
     for i in range(index0,index1):
         atoms = df['ase_atoms'][i]
         n_atoms = len(atoms)
-        tasks.append([i,n_atoms])
+        vasps.append([i,n_atoms])
         first_index.append(first_index[-1]+1+3*n_atoms)
         if not os.path.isfile(start_path+"energy-configs/em_%i.dat"% i):
             write(start_path+"energy-configs/em_%i.dat"% i, atoms, format='vasp')
-        if not os.path.isdir(start_path+"vasp-energy/vasp-em_%i"% i):
-            os.makedirs(start_path+"vasp-energy/vasp-em_%i"% i)
-    tasks.sort(key=lambda x: x[1]) #large systems are at the end, small systems are at the front
+        os.makedirs(start_path+"vasp-energy/vasp-em_%i"% i, exist_ok=True)
+    vasps.sort(key=lambda x: x[1]) #large systems are at the end, small systems are at the front
 
-    in_process_featurizations = []
-    in_process_tasks = []
-    in_process_fits = []
-    in_process_costs = []
     if resume_mode and os.path.isfile("checkpoint.pkl"):
-        print("RESUMING FROM CHECKPOINT")
         with open("checkpoint.pkl", "rb") as f:
-            (completed_featurizations, completed_tasks, completed_fits, completed_costs, job_ids_for_fit,
-             feature_names, trigger_fit, wait_for_last_fit) = pickle.load(f)
-            
-        remaining_featurizations = [i for i in range(len(rcuts_list)) if i not in completed_featurizations]
-        remaining_tasks = [task[0] for task in tasks if task[0] not in completed_tasks]
-        remaining_fits = [i for i in range(len(hyperparameters_list)) if i not in completed_fits]
-        remaining_costs = [i for i in range(len(hyperparameters_list_noeweight)) if i not in completed_costs]
-        failed_tasks = []
+            (featurizations, vasp_idxs, fits, costs) = pickle.load(f)
+            # Here I also need to have futures, because of dependency
+    elif resume_mode:  # Think about new jobs deleting the old ones, make sure it creates new directories for the new jobs
+        raise NotImplementedError("Resuming without checkpoint file is not implemented yet")  
     else:
-        completed_featurizations = []
-        completed_tasks = []
-        completed_fits = []
-        completed_costs = []
-        remaining_featurizations = [i for i in range(len(rcuts_list))] if feature_mode else []
-        remaining_tasks = [task[0] for task in tasks] if vasp_mode else []
-        remaining_fits = [i for i in range(len(hyperparameters_list))] if fit_mode else []
-        remaining_costs = [i for i in range(len(hyperparameters_list_noeweight))] if pareto_mode else []
-        failed_tasks = []
-        job_ids_for_fit = []
-        feature_names = []
-        trigger_fit = 0 if vasp_mode else 2
-        wait_for_last_fit = 0
+        featurizations = [i for i in range(len(rcuts_list))] if feature_mode else []
+        vasp_idxs = [i for i in range(len(vasps))] if vasp_mode else []
+        fits = [i for i in range(len(hyperparameters_list))] if fit_mode else []
+        costs = [i for i in range(len(hyperparameters_list_noeweight))] if pareto_mode else []
 
-    print(len(remaining_tasks)," TASKS REMAINING  --- ", len(in_process_tasks)," TASKS IN PROCESS  --- ", len(completed_tasks), " COMPLETED TASKS")
-
-    if vasp_mode: vasp_futures = set()
-    if feature_mode: featurization_futures = set()
-    if fit_mode: fitting_futures = set()
-    if pareto_mode: cost_futures = set()
-
-    start_time = time.time()
-    with FluxJobExecutor(flux_executor_pmi_mode="pmi2", flux_log_files=True) as exe:
-    # with SingleNodeExecutor() as exe:
-
-        rl = flux.resource.list.resource_list(handle).get()
-        print(rl.free.ncores, "CORES FREE ",all_ncores, "CORES TOTAL")
-        print(rl.free.ngpus, "GPUS FREE ",all_ngpus, "GPUS TOTAL")
-        ncores_per_featurization = (rl.free.ncores - 2*rl.free.ngpus)//len(rs.nodelist) - 1
-        # ncores_per_featurization = 29
-        print("Number of cores allocated for featurization step is", ncores_per_featurization)
-
-        print("Featurization step...")
-        for i in remaining_featurizations:
-            rcuts = rcuts_list[i]
-            feature_directory = start_path + "features/" + rcuts_to_string(rcuts, delimiter='_')
-            if not os.path.isdir(feature_directory):
-                os.mkdir(feature_directory)
-            fs = exe.submit(featurize, df['ase_atoms'].to_list(), config, fitsnap_config, rcuts,
-                            resource_dict={"cores": ncores_per_featurization, "gpus_per_core": 0,
-                                           "num_nodes": 1, "cwd": feature_directory})
-            fs.task_ = i
-            featurization_futures.add(fs)
-            in_process_featurizations.append(i)
-        remaining_featurizations = []
-
-        while True:
-            
-            if (len(remaining_featurizations) == 0 and len(in_process_featurizations) == 0) and \
-            (len(remaining_tasks) == 0 and len(in_process_tasks) == 0) and \
-            (len(remaining_fits) == 0 and len(in_process_fits) == 0) and wait_for_last_fit == 0:
-                break
-
-            rl = flux.resource.list.resource_list(handle).get()
-            # if len(completed_tasks) == len(tasks) and len(remaining_fits) != 0:
-            print("It has been %.3f seconds since the last check." % (time.time() - start_time))
-            start_time = time.time()
-            print(rl.free.ncores, "CORES FREE ", all_ncores, "CORES TOTAL", rl.free.ngpus, "GPUS FREE ", all_ngpus, "GPUS TOTAL")
-            print(len(remaining_featurizations), len(in_process_featurizations), len(completed_featurizations), len(remaining_tasks),
-                  len(in_process_tasks), len(completed_tasks), len(remaining_fits), len(in_process_fits), len(completed_fits),
-                  wait_for_last_fit)
+    if feature_mode: featurization_futures = []
+    if vasp_mode: vasp_futures = []
+    if vasp_mode: b_futures = [[]]  # [[]] is not a bug it is for b_futures[-1] to work
+    if fit_mode: fitting_futures = []
+    if pareto_mode: cost_futures = []
+    if pareto_mode: pareto_futures = []
 
 
-            # print("SCHEDULING VASP TASKS")
-            if len(remaining_tasks)>0:
-                rl = flux.resource.list.resource_list(handle).get()
-                n_gpus_free = rl.free.ngpus
-                n_cores_free = rl.free.ncores
-            
-                while n_gpus_free>=1 and len(remaining_tasks)>0 and len(in_process_tasks)<all_ngpus:
-                # while n_gpus_free>=1 and len(remaining_tasks)>0 and len(in_process_tasks)<(all_ngpus-1):
-                    
-                    task = remaining_tasks.pop(0)
-                    input_file = "energy-configs/em_%i.dat"%task
-                    vasp_directory = start_path + "vasp-energy/vasp-em_%i/"%task
+    with FluxJobExecutor(max_workers=all_ngpus, flux_log_files=True) as vasp_exe:
 
-                    print("RUNNING ", task, "on GPUs", vasp_directory, input_file)
-                    # fs = exe.submit(fake_vasp, force_energy_filename, task, first_index[task],
-                    #                 resource_dict={"cores": 1, "gpus_per_core": 1, "num_nodes": 1, "cwd": vasp_directory})
-                    fs = exe.submit(vasp, start_path, start_path+input_file, task, first_index[task],
-                                    resource_dict={"cores": 1, "gpus_per_core": 0, "num_nodes": 1, "cwd": vasp_directory})
-                    # fs = exe.submit(lammps, start_path, start_path+input_file, task, first_index[task],
-                    #                 resource_dict={"cores": 1, "gpus_per_core": 0, "num_nodes": 1, "cwd": vasp_directory})
-                    fs.task_ = task
-                    vasp_futures.add(fs)
-                    in_process_tasks.append(task)
-                    n_gpus_free-=1
+        with FluxJobExecutor(flux_log_files=True) as exe:
 
-
-            # print("PROCESSING VASP FUTURES")
-            if vasp_mode:
-                print("nvasp_futures was ", len(vasp_futures), vasp_futures)
-                vasp_done, vasp_futures = concurrent.futures.wait(vasp_futures, timeout=0.1)
-                print("nvasp_futures is ", len(vasp_futures), vasp_futures)
-                for fut in vasp_done:
-                    completed_tasks.append(fut.task_)
-
-                    if len(completed_tasks) == len(tasks) and len(in_process_fits) == 0 and len(in_process_featurizations) == 0:
-                        trigger_fit = 1
-                        print("Triggering last fit: ", len(completed_tasks))
-                    elif len(completed_tasks) == len(tasks) and len(in_process_fits) != 0:
-                        wait_for_last_fit = 1
-                    elif len(completed_tasks)%fit_freq == 0 and len(in_process_fits) == 0 and len(in_process_featurizations) == 0:
-                        trigger_fit = 1
-                        print("Triggering fit: ", len(completed_tasks))
-
-                    in_process_tasks.remove(fut.task_)
-                    print(len(remaining_tasks)," TASKS REMAINING  --- ", len(in_process_tasks)," TASKS IN PROCESS  --- ",
-                        len(completed_tasks), " COMPLETED TASKS")
-
-
-            # Rethink this, do you really need to get rl everytime and why do you need n_excess_cores_free if you recalculate it later
-            rl = flux.resource.list.resource_list(handle).get()
-            n_cores_free = rl.free.ncores
-            n_gpus_free = rl.free.ngpus
-            # n_excess_cores_free = n_cores_free - n_gpus_free
-
-
-            # print("PREPARING B.CSV FOR THE FIT")
-            if (trigger_fit == 1) and (len(in_process_featurizations)==0):
-                # Filesystem is slow consider that
-                print("Preparing b.csv for the fit...")
-                os.chdir("vasp-energy")
-                new_completed_tasks = ["vasp-em_%i/b" % job_id for job_id in completed_tasks if job_id not in job_ids_for_fit]
-                print(" ".join(new_completed_tasks))
-                os.system("cat " + " ".join(new_completed_tasks) + " >> " + start_path + "features/b.csv")
-                os.chdir("..")
-                job_ids_for_fit = copy.copy(completed_tasks)
-                trigger_fit = 2
-
-
-            # print("SCHEDULING FITTING TASKS")
-            if (trigger_fit == 2 and len(remaining_fits) > 0) and (len(in_process_featurizations)==0):
-                #save to a file the configurations that have energies already from completed tasks
-                # n_excess_cores_free = rl.free.ncores - 2*rl.free.ngpus - len(rs.nodelist)
-                ncores_free = all_ncores - 2*all_ngpus - len(in_process_featurizations)*ncores_per_featurization
-                ncores_free -= len(in_process_fits)*ncores_per_fit + len(in_process_costs) + len(rs.nodelist)
-                while ncores_free>=ncores_per_fit and len(remaining_fits)>0:  # and (len(in_process_fits)<((all_ncores-all_ngpus)//ncores_per_fit)):
-                    print("Starting the fits...")
-                    i = remaining_fits.pop(0)
-                    fit_directory = start_path + "fits/" + str(len(job_ids_for_fit))
-                    if not os.path.isdir(fit_directory):
-                        os.mkdir(fit_directory)
-                    if mlip == "ACE":
-                        fit_directory += "/" + ace_hyperparameters_to_string(hyperparameters_list[i], delimiter='_')
-                    elif mlip == "SNAP":
-                        fit_directory += "/" + snap_hyperparameters_to_string(hyperparameters_list[i], delimiter='_')
-                    if not os.path.isdir(fit_directory):
-                        os.mkdir(fit_directory)
-                    fs = exe.submit(fit, start_path+"features/", hyperparameters_list[i], feature_names, mlip,
-                                    resource_dict={"cores": 1, "threads_per_core": ncores_per_fit,
-                                                   "gpus_per_core": 0, "num_nodes": 1, "cwd": fit_directory})
-                    fs.task_ = i
-                    fitting_futures.add(fs)
-                    in_process_fits.append(i)
-                    ncores_free -= ncores_per_fit
-                
-                if len(remaining_fits) == 0:
-                    if len(remaining_tasks) != 0 or len(in_process_tasks) != 0 or wait_for_last_fit == 1:
-                        trigger_fit = 0
-                        remaining_fits = [i for i in range(len(hyperparameters_list))]
-                    else:
-                        trigger_fit = 0
-
-
-            # print("SCHEDULING COST TASKS")
-            if pareto_mode:
-                ncores_free = all_ncores - 2*all_ngpus - len(in_process_featurizations)*ncores_per_featurization
-                ncores_free -= len(in_process_fits)*ncores_per_fit + len(in_process_costs) + len(rs.nodelist)
-                nconfigs4cost = config["MODE"]["nconfigurations_for_cost"]
-                while ncores_free>=1 and len(remaining_costs)>0:
-                    print("Starting the cost estimation...")
-                    i = remaining_costs.pop(0)
-                    costs_directory = start_path + "costs/"
-                    if mlip == "ACE":
-                        costs_directory += ace_hyperparameters_to_string(hyperparameters_list_noeweight[i], delimiter='_', w_eweight=False)
-                    elif mlip == "SNAP":
-                        costs_directory += snap_hyperparameters_to_string(hyperparameters_list_noeweight[i], delimiter='_', w_eweight=False)
-                    if not os.path.isdir(costs_directory): os.mkdir(costs_directory)
-                    fs = exe.submit(featurize, df["ase_atoms"].sample(n=nconfigs4cost,random_state=42).to_list(), config,
-                                    fitsnap_config, rcuts, only_cost=True, resource_dict={"cores": 1, "gpus_per_core": 0,
-                                                                                           "num_nodes": 1, "cwd": costs_directory})
-                    fs.task_ = i
-                    cost_futures.add(fs)
-                    in_process_costs.append(i)
-                    ncores_free -= 1
-
-
-            # print("PROCESSING FITSNAP FUTURES")
             if feature_mode:
-                featurizations_done, featurization_futures = concurrent.futures.wait(featurization_futures, timeout=0.1)
-                for fut in featurizations_done:
-                    feature_names = fut.result()[0]
-                    print(len(feature_names),feature_names)
-                    completed_featurizations.append(fut.task_)
-                    in_process_featurizations.remove(fut.task_)
-                    print(len(remaining_featurizations)," FEATURIZATIONS REMAINING  --- ", len(in_process_featurizations)," FEATURIZATIONS IN PROCESS  --- ",
-                        len(completed_featurizations), " COMPLETED FEATURIZATIONS")
+                ncores_per_featurization = int((all_ncores - all_ngpus)/len(rs.nodelist)) - 2
+                print("FEATURIZATION jobs submission...")
+                print(f"Number of cores allocated for featurization step is {ncores_per_featurization}")
+                for i in featurizations:  # Loop over rcuts_list indices
+                    rcuts = rcuts_list[i]
+                    feature_directory = start_path + "features/" + rcuts_to_string(rcuts, delimiter='_')
+                    os.makedirs(feature_directory, exist_ok=True)
+                    fs = exe.submit(featurize, df['ase_atoms'].to_list(), config, fitsnap_config, rcuts,
+                                    resource_dict={"cores": ncores_per_featurization, "gpus_per_core": 0,
+                                                   "num_nodes": 1, "cwd": feature_directory})
+                    fs.task_ = i
+                    featurization_futures.append(fs)
+                    
+            if vasp_mode:
+                print("VASP jobs submission...")
+                for i in vasp_idxs:  # Loop over atomic configuration indices
+                    vasp_ID = vasps[i][0]
+                    input_file = "energy-configs/em_%i.dat"%vasp_ID
+                    vasp_directory = start_path + "vasp-energy/vasp-em_%i/"%vasp_ID
+                    print("Submitting", vasp_ID, "on GPUs", vasp_directory, input_file)
+                    # fs = vasp_exe.submit(fake_vasp, force_energy_filename, vasp_ID, first_index[vasp_ID],
+                    #                 resource_dict={"cores": 1, "gpus_per_core": 1, "num_nodes": 1, "cwd": vasp_directory})
+                    fs = vasp_exe.submit(vasp, start_path, start_path+input_file, vasp_ID, first_index[vasp_ID],
+                                         resource_dict={"cores": 1, "gpus_per_core": 0, "num_nodes": 1, "cwd": vasp_directory})
+                    # fs = vasp_exe.submit(lammps, start_path, start_path+input_file, vasp_ID, first_index[vasp_ID],
+                    #                 resource_dict={"cores": 1, "gpus_per_core": 0, "num_nodes": 1, "cwd": vasp_directory})
+                    fs.task_ = i
+                    vasp_futures.append(fs)
 
+                    if i == len(vasp_idxs) or i % fit_freq == 0:
+                        fs = exe.submit(combine_b, start_path, vasp_futures, b_futures[-1],
+                                        resource_dict={"cores": 1, "cwd": start_path+"vasp-energy"})
+                        fs.task_ = i  # DO I REALLY NEED IT??? and even others
+                        b_futures.append(fs)
 
-            # print("PROCESSING FITTING FUTURES")
             if fit_mode:
-                fitting_done, fitting_futures = concurrent.futures.wait(fitting_futures, timeout=0.1)
-                for fut in fitting_done:
-                    completed_fits.append(fut.task_)
-                    in_process_fits.remove(fut.task_)
-                    print(len(remaining_fits)," FITS REMAINING  --- ", len(in_process_fits)," FITS IN PROCESS  --- ",
-                        len(completed_fits), " COMPLETED FITS")
+                print("FITTING jobs submission...")
+                for j, b_future in enumerate(b_futures[1:]):  # Loop over cumulative batches of finished vasp jobs
+                    fitting_fututes_temp = []
+                    for i in fits:  # Loop over hyperparameters_list
+                        rcut_idx = rcuts_list.index(hyperparameters_list[i][0])
+                        fit_directory = f"{start_path}fits/{j}/"
+                        fit_directory += hyperparameters_to_string(mlip, hyperparameters_list[i], delimiter='_')
+                        os.makedirs(fit_directory, exist_ok=True)
+                        fs = exe.submit(fit, start_path+"features/", featurization_futures[rcut_idx], b_future, 
+                                        hyperparameters_list[i], mlip,
+                                        resource_dict={"cores": 1, "threads_per_core": ncores_per_fit, 
+                                                       "gpus_per_core": 0, "num_nodes": 1, "cwd": fit_directory})
+                        fs.task_ = (i,j)
+                        fitting_fututes_temp.append(fs)
+                    fitting_futures.append(fitting_fututes_temp)  # This is a list of per batch futures lists
 
-
-            # print("PROCESSING COSTS FUTURES")
             if pareto_mode:
-                costs_done, cost_futures = concurrent.futures.wait(cost_futures, timeout=0.1)
-                for fut in costs_done:
-                    completed_costs.append(fut.task_)
-                    in_process_costs.remove(fut.task_)
-                    print(len(remaining_costs)," COSTS REMAINING  --- ", len(in_process_costs)," COSTS IN PROCESS  --- ",
-                        len(completed_costs), " COMPLETED COSTS")
+                print("COST jobs submission...")
+                nconfigs4cost = config["MODE"]["nconfigurations_for_cost"]
+                for i in costs:  # Loop over hyperparameters_list_noeweight
+                    hyperparams = hyperparameters_list_noeweight[i]
+                    rcuts = hyperparams[0]
+                    atoms4cost = df["ase_atoms"].sample(n=nconfigs4cost,random_state=42).to_list()
+                    costs_directory = start_path + "costs/"
+                    costs_directory += hyperparameters_to_string(mlip, hyperparams, delimiter='_', w_eweight=False)
+                    os.makedirs(costs_directory, exist_ok=True)
+                    fs = exe.submit(featurize, atoms4cost, config, fitsnap_config, rcuts, True, hyperparams,
+                                    resource_dict={"cores": 1, "gpus_per_core": 0, "num_nodes": 1, "cwd": costs_directory})
+                    fs.task_ = i
+                    cost_futures.append(fs)
+                
+                print("PARETO jobs submission...")
+                for i, fitting_futures_per_b in enumerate(fitting_futures):  # Loop over batches of fitting jobs
+                    fs = exe.submit(pareto, start_path, i, fitting_futures_per_b, cost_futures, mlip,
+                                    resource_dict={"cores": 1, "gpus_per_core": 0, "num_nodes": 1, "cwd":start_path+"pareto-front"})
+                    fs.task_ = i
+                    pareto_futures.append(fs)
 
 
-            # print("DOING PARETO FRONT")
-            if len(completed_fits)==len(hyperparameters_list) and len(completed_costs)==len(hyperparameters_list_noeweight):
-                completed_fits = []
-                print("All fits are done!")
-                if pareto_mode:
-                    if pareto(tasks, start_path, hyperparameters_list, hyperparameters_list_noeweight, feature_names, mlip, 
-                              job_ids_for_fit, remaining_fits, trigger_fit, auto_reduce_hps, wait_for_last_fit):
-                        break
-            
-            
-            # print("TRIGGERING LAST FIT")
-            if wait_for_last_fit and len(in_process_fits) == 0:
-                trigger_fit = 1
-                wait_for_last_fit = 0
-                print("Triggering last fit: ",len(completed_tasks))
+            while len(pareto_futures):
 
+                if feature_mode: 
+                    featurization_futures = check_and_print_status(featurization_futures, "FEATURIZATIONS", len(featurizations))
+
+                if vasp_mode: vasp_futures = check_and_print_status(vasp_futures, "VASP", len(vasp_idxs))
+
+                if fit_mode: fitting_futures = check_and_print_status(fitting_futures, "FITTING", len(fits))
+
+                if pareto_mode: cost_futures = check_and_print_status(cost_futures, "COST", len(costs))
+
+                if pareto_mode: pareto_futures = check_and_print_status(pareto_futures, "PARETO", len(b_futures)-1)
             
-            # if len(in_process_featurizations) == 0:
-            with open("checkpoint.pkl", "wb") as f:
-                pickle.dump((completed_featurizations, completed_tasks, completed_fits, completed_costs, job_ids_for_fit,
-                             feature_names, trigger_fit, wait_for_last_fit), f)
+                with open("checkpoint.pkl", "wb") as f:
+                    pickle.dump((vasp_futures, featurization_futures, fitting_futures, cost_futures), f)
 
 
 if __name__ == "__main__":

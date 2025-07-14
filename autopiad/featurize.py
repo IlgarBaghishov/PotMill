@@ -1,5 +1,5 @@
 
-def featurize(atoms_traj, config, fitsnap_config, rcuts, only_cost=False):
+def featurize(atoms_traj, config, fitsnap_config, rcuts, only_cost=False, hyperparameters_noeweight=None):
 
     import os
     import numpy as np
@@ -54,3 +54,5 @@ def featurize(atoms_traj, config, fitsnap_config, rcuts, only_cost=False):
                     bstop = bstart + ncoeff
                     bnames += [[0]] + fs.config.sections["BISPECTRUM"].blist[bstart:bstop]
             return bnames
+        else:
+            return hyperparameters_noeweight
