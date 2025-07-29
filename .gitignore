@@ -1,9 +1,18 @@
 **/__pycache__
 
-examples/*
+examples/**
+
+!examples/Be/
+!examples/Be/ACE/
+!examples/Be/SNAP/
+!examples/WRe/
+!examples/WRe/ACE/
+!examples/WRe/SNAP/
+
 !examples/Be/ACE/inputfile
 !examples/Be/ACE/FitSNAP.in
 !examples/Be/ACE/run_debug.sh
+!examples/Be/ACE/pot.yace
 !examples/Be/ACE/run_lammps_ase.sh
 !examples/Be/ACE/run_vasp_6.3.2_std_ase.sh
 !examples/Be/SNAP/inputfile

@@ -31,9 +31,6 @@ def check_and_print_status(futures, name, total, list_of_lists=False):
         if len(done)!=0:
             print(f"{len(futures)} {name}S REMAINING  --- {total-len(futures)} {name}S FINISHED  --- "
                   f"{total} {name}S TOTAL")
-            if name == "FEATURIZATION":
-                for fut in done:
-                    print(fut.result())
     return futures
 
 
@@ -161,25 +158,21 @@ def main():
                     # fs = vasp_exe.submit(fake_vasp, force_energy_filename, vasp_ID, first_index[vasp_ID],
                     #                 resource_dict={"cores": 1, "gpus_per_core": 1, "num_nodes": 1, "cwd": vasp_directory})
                     fs = vasp_exe.submit(vasp, start_path, start_path+input_file, vasp_ID, first_index[vasp_ID],
-                                         resource_dict={"cores": 1, "gpus_per_core": 0, "num_nodes": 1, "cwd": vasp_directory,
-                                                        "error_log_file":"error.out"})
+                                         resource_dict={"cores": 1, "gpus_per_core": 0, "num_nodes": 1,
+                                                        "cwd": vasp_directory, "error_log_file":"error.out"})
                     # fs = vasp_exe.submit(lammps, start_path, start_path+input_file, vasp_ID, first_index[vasp_ID],
-                    #                 resource_dict={"cores": 1, "gpus_per_core": 0, "num_nodes": 1, "cwd": vasp_directory})
+                    #                      resource_dict={"cores": 1, "gpus_per_core": 0, "num_nodes": 1,
+                    #                                     "cwd": vasp_directory, "error_log_file":"error.out"})
                     fs.task_ = i
                     vasp_futures.append(fs)
 
                 batched_vasp_futures = exe.batched(vasp_futures, n=fit_freq)
                 for i, batched_vasp_future in enumerate(batched_vasp_futures):
                     fs = exe.submit(combine_b, start_path, batched_vasp_future, b_futures[-1],
-                                    resource_dict={"cores": 1, "cwd": start_path+"vasp-energy", "error_log_file":"error.out"})
+                                    resource_dict={"cores": 1, "cwd": start_path+"vasp-energy",
+                                                   "error_log_file":"error.out"})
                     fs.task_ = i  # DO I REALLY NEED IT??? and even others
                     b_futures.append(fs)
-
-                    # if i == len(vasp_idxs) or i % fit_freq == 0:
-                    #     fs = exe.submit(combine_b, start_path, vasp_futures, b_futures[-1],
-                    #                     resource_dict={"cores": 1, "cwd": start_path+"vasp-energy"})
-                    #     fs.task_ = i  # DO I REALLY NEED IT??? and even others
-                    #     b_futures.append(fs)
 
             if feature_mode:
                 ncores_per_featurization = int((all_ncores - all_ngpus)/len(rs.nodelist)) - 3

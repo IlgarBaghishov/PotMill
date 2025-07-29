@@ -193,8 +193,8 @@ def vasp(start_path, input_file, job_id, first_index):
                     os.remove(file)
             
         except:
-            raise
+            print("Error while cleaning up files")
     except:
-        raise
+        print("Error while running VASP or writing the output files")
 
     return job_id
