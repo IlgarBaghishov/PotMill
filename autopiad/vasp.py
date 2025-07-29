@@ -8,8 +8,6 @@ from shutil import make_archive
 
 def write_json(data, jsonfilename):
     jsonfile = open(jsonfilename, "w")
-    # print >>jsonfile, "# Header\n"
-    # print("# Header", file=jsonfilename)
     allData = [data]
     allDataHeader = {}
     allDataHeader["EnergyStyle"] = "electronvolt"
@@ -43,28 +41,24 @@ def convert_xml_to_jason(xml_file, JSON_file):
     for event, elem in tree:
         if elem.tag == 'parameters' and event=='end': #once at the start
             NELM = int(elem.find('separator[@name="electronic"]/separator[@name="electronic convergence"]/i[@name="NELM"]').text)
-            #print(NELM)
             
         elif elem.tag == 'atominfo' and event == 'end': #once at the start
             for entry in elem.find("array[@name='atoms']/set"):
                 listAtomTypes.append(entry[0].text.strip())
             natoms = len(listAtomTypes)
-            #print('atom types', listAtomTypes)
             for entry in elem.find("array[@name='atomtypes']/set"):
                 list_POTCARS.append(entry[4].text.strip().split())
-            #print('potcars:', list_POTCARS)
             
         elif (elem.tag == 'structure' and not elem.attrib.get('name')) and event=='end': #only the empty name ones - not primitive cell, initial, or final (those are repeats) - so each ionic step
             all_lattice = []
             for entry in elem.find("crystal/varray[@name='basis']"):
                 lattice_row = [float(x) for x in entry.text.split()]
                 all_lattice.append(lattice_row)
-            #print('lattice = ', all_lattice)
+
             frac_atom_coords = []
             for entry in elem.find("varray[@name='positions']"):
                 frac_atom_coords.append([float(x) for x in entry.text.split()])
             atom_coords = np.dot(frac_atom_coords, all_lattice).tolist()
-            #print(atom_coords)
             
         elif elem.tag == 'calculation' and event=='end': #this triggers each ionic step
             atom_force = []
@@ -72,7 +66,7 @@ def convert_xml_to_jason(xml_file, JSON_file):
             if force_block:
                 for entry in force_block:
                     atom_force.append([float(x) for x in entry.text.split()])
-            #print(atom_force)
+
             stress_block = elem.find("varray[@name='stress']")
             stress_component = []
             if stress_block:
@@ -80,7 +74,7 @@ def convert_xml_to_jason(xml_file, JSON_file):
                     stress_component.append([float(x) for x in entry.text.split()])
             totalEnergy = float(elem.find('energy/i[@name="e_0_energy"]').text)  ##NOTE! this value is incorrectly reported by VASP in version 5.4 (fixed in 6.1), see https://www.vasp.at/forum/viewtopic.php?t=17839
             ## ASE vasprun.xml io reader has a more complex workaround to get the correct energy - we can update to include if needed
-            #print(totalEnergy)
+
             if len(elem.findall("scstep")) == NELM:
                 electronic_convergence = False ##This isn't the best way to check this, but not sure if info is directly available. Could try to calculate energy diff from scstep entries and compare to EDIFF
             else:

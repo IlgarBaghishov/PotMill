@@ -7,6 +7,8 @@ def fit(features_directory, feature_names, vasp_IDs_ready_for_fit, hyperparamete
     import random
     from autopiad.tools import rcuts_to_string, nmaxes_to_string, lmaxes_to_string, twojmaxes_to_string
 
+    if isinstance(feature_names[0][0],list): feature_names = feature_names[0]
+    
     if mlip == "ACE":
         rcuts, nmaxes, lmaxes, eweight = hyperparameters
         nindcs_to_bodyorder = {5:2, 8:3, 12:4, 16:5, 20:6, 24:7}

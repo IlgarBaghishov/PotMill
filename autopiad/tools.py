@@ -26,12 +26,11 @@ def twojmaxes_to_string(twojmaxes, delimiter=" "):
 
 def hyperparameters_to_string(mlip, hyperparameters, delimiter=" ", w_eweight=True):
     if mlip.upper() == "ACE":
-        ace_hyperparameters_to_string(hyperparameters, delimiter, w_eweight)
+        return ace_hyperparameters_to_string(hyperparameters, delimiter, w_eweight)
     elif mlip.upper() == "SNAP":
-        snap_hyperparameters_to_string(hyperparameters, delimiter, w_eweight)
+        return snap_hyperparameters_to_string(hyperparameters, delimiter, w_eweight)
     else:
         print("MLIP types supported are only ACE and SNAP")
-
 
 
 def ace_hyperparameters_to_string(hyperparameters, delimiter=" ", w_eweight=True):
@@ -64,7 +63,7 @@ def create_rcut_range(min_rcut,max_rcut,num_rcut):
 
 def create_nmax_range(min_nmax,max_nmax):
     if isinstance(min_nmax,list):
-        nmax_range = [np.arange(min_nmax[i],max_nmax[i]+1) for i in range(len(min_nmax))]
+        nmax_range = [np.arange(min_nmax[i],max_nmax[i]+1).tolist() for i in range(len(min_nmax))]
         # nmax_range = np.vstack(nmax_range).T.tolist()
         nmax_range = [list(nmax_list) for nmax_list in product(*nmax_range)]
     if isinstance(min_nmax,int):   
@@ -74,7 +73,7 @@ def create_nmax_range(min_nmax,max_nmax):
 
 def create_lmax_range(min_lmax,max_lmax):
     if isinstance(min_lmax,list):
-        lmax_range = [np.arange(min_lmax[i],max_lmax[i]+1) for i in range(len(min_lmax))]
+        lmax_range = [np.arange(min_lmax[i],max_lmax[i]+1).tolist() for i in range(len(min_lmax))]
         # lmax_range = np.vstack(lmax_range).T.tolist()
         lmax_range = [list(lmax_list) for lmax_list in product(*lmax_range)]
     if isinstance(min_lmax,int):   
@@ -84,7 +83,7 @@ def create_lmax_range(min_lmax,max_lmax):
 
 def create_twojmax_range(min_twojmax,max_twojmax):
     if isinstance(min_twojmax,list):
-        twojmax_range = [np.arange(min_twojmax[i],max_twojmax[i]+1) for i in range(len(min_twojmax))]
+        twojmax_range = [np.arange(min_twojmax[i],max_twojmax[i]+1).tolist() for i in range(len(min_twojmax))]
         twojmax_range = np.vstack(twojmax_range).T.tolist()
         # twojmax_range = [list(twojmax_list) for twojmax_list in product(*twojmax_range)]
     if isinstance(min_twojmax,int):   
