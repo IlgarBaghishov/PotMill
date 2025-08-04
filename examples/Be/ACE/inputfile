@@ -5,6 +5,7 @@ featurize = 1
 vasp = 1
 fit = 1
 pareto = 1
+pops = 1
 fit_freq = 100
 auto_reduce_hyperparameters = 0
 ncores_per_fit = 5

@@ -11,6 +11,7 @@ from autopiad.lammps import lammps
 from autopiad.fake_vasp import fake_vasp
 from autopiad.fit import fit
 from autopiad.pareto import pareto
+from autopiad.pops import pops
 import flux
 import concurrent.futures
 import flux.job
@@ -64,6 +65,7 @@ def main():
     vasp_mode = config["MODE"]["vasp"]
     fit_mode = config["MODE"]["fit"]
     pareto_mode = config["MODE"]["pareto"]
+    pops_mode = config["MODE"]["pops"]
     fit_freq = config["MODE"]["fit_freq"]
     ncores_per_fit = config["MODE"]["ncores_per_fit"]
     auto_reduce_hps = config["MODE"]["auto_reduce_hyperparameters"]
@@ -142,6 +144,7 @@ def main():
     if fit_mode: fitting_futures = []
     if pareto_mode: cost_futures = []
     if pareto_mode: pareto_futures = []
+    if pops_mode: pops_futures = []
 
 
     with FluxJobExecutor(max_workers=all_ngpus, flux_log_files=True, cache_directory=start_path+'vasp_runs') as vasp_exe:
@@ -191,7 +194,7 @@ def main():
             if fit_mode:
                 print("FITTING jobs submission...")
                 for j, b_future in enumerate(b_futures[1:]):  # Loop over cumulative batches of finished vasp jobs
-                    fitting_fututes_temp = []
+                    fitting_futures_temp = []
                     for i in fits:  # Loop over hyperparameters_list
                         rcut_idx = rcuts_list.index(hyperparameters_list[i][0])
                         fit_directory = f"{start_path}fits/{j}/"
@@ -203,8 +206,8 @@ def main():
                                                        "gpus_per_core": 0, "num_nodes": 1, "cwd": fit_directory,
                                                        "error_log_file":"error.out"})
                         fs.task_ = (i,j)
-                        fitting_fututes_temp.append(fs)
-                    fitting_futures.append(fitting_fututes_temp)  # This is a list of per batch futures lists
+                        fitting_futures_temp.append(fs)
+                    fitting_futures.append(fitting_futures_temp)  # This is a list of per batch futures lists
 
             if pareto_mode:
                 print("COST jobs submission...")
@@ -229,6 +232,21 @@ def main():
                                                    "cwd":start_path+"pareto-front", "error_log_file":"error.out"})
                     fs.task_ = i
                     pareto_futures.append(fs)
+
+            if pops_mode:
+                print("UNCERTAINTY QUANTIFICATION jobs submission...")
+                for i in fits:  # Loop over hyperparameters_list
+                    rcut_idx = rcuts_list.index(hyperparameters_list[i][0])
+                    posp_directory = f"{start_path}pops/"
+                    posp_directory += hyperparameters_to_string(mlip, hyperparameters_list[i], delimiter='_')
+                    os.makedirs(fit_directory, exist_ok=True)
+                    fs = exe.submit(fit, start_path+"features/", featurization_futures[rcut_idx], b_futures[-1], 
+                                    hyperparameters_list[i], mlip,
+                                    resource_dict={"cores": 1, "threads_per_core": ncores_per_fit, 
+                                                "gpus_per_core": 0, "num_nodes": 1, "cwd": fit_directory,
+                                                "error_log_file":"error.out"})
+                    fs.task_ = i
+                    pops_futures.append(fs)
 
             b_futures = b_futures[1:]
             num_b_futures = len(b_futures)
