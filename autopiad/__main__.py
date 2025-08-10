@@ -80,6 +80,11 @@ def main():
         hyperparameters_list_noeweight = combined_snap_hyperparameters(config, w_eweight=False)
         fitsnap_config["BISPECTRUM"]["twojmax"] = twojmaxes_to_string(config["TWOJMAX"]["max_twojmax"])
 
+    if not resume_mode and vasp_mode:
+        os.system("rm -rf "+start_path+"energy-configs")
+        os.mkdir(start_path+"energy-configs")
+        os.system("rm -rf "+start_path+"vasp-energy")
+        os.mkdir(start_path+"vasp-energy")
     if not resume_mode and feature_mode:
         os.system("rm -rf "+start_path+"features")
         os.mkdir(start_path+"features")
@@ -91,11 +96,10 @@ def main():
         os.mkdir(start_path+"costs")
         os.system("rm -rf "+start_path+"pareto-front")
         os.mkdir(start_path+"pareto-front")
-    if not resume_mode and vasp_mode:
-        os.system("rm -rf "+start_path+"energy-configs")
-        os.mkdir(start_path+"energy-configs")
-        os.system("rm -rf "+start_path+"vasp-energy")
-        os.mkdir(start_path+"vasp-energy")
+    if not resume_mode and pops_mode:
+        os.system("rm -rf "+start_path+"pops")
+        os.mkdir(start_path+"pops")
+
 
     # if entropy_mode:
     #     em = EntropyMaximizer()
@@ -239,11 +243,11 @@ def main():
                     rcut_idx = rcuts_list.index(hyperparameters_list[i][0])
                     posp_directory = f"{start_path}pops/"
                     posp_directory += hyperparameters_to_string(mlip, hyperparameters_list[i], delimiter='_')
-                    os.makedirs(fit_directory, exist_ok=True)
-                    fs = exe.submit(fit, start_path+"features/", featurization_futures[rcut_idx], b_futures[-1], 
+                    os.makedirs(posp_directory, exist_ok=True)
+                    fs = exe.submit(pops, start_path+"features/", featurization_futures[rcut_idx], b_futures[-1], 
                                     hyperparameters_list[i], mlip,
                                     resource_dict={"cores": 1, "threads_per_core": ncores_per_fit, 
-                                                "gpus_per_core": 0, "num_nodes": 1, "cwd": fit_directory,
+                                                "gpus_per_core": 0, "num_nodes": 1, "cwd": posp_directory,
                                                 "error_log_file":"error.out"})
                     fs.task_ = i
                     pops_futures.append(fs)
