@@ -1,7 +1,9 @@
 #!/bin/bash
 source /users/baghishov/.bashrc
 
-export VASP_ROOT=/usr/projects/icapt/applications/vasp/vasp-6.4.2-nvidia-gpu
+
+export VASP_ROOT=/usr/projects/icapt/applications/vasp/vasp-master-release.6.4-GPU
+# export VASP_ROOT=/usr/projects/icapt/applications/vasp/vasp-6.4.2-nvidia-gpu
 source ${VASP_ROOT}/setenv_chicoma.sh
 
 ############### This is important for other programs ##########################

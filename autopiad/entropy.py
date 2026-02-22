@@ -1,7 +1,9 @@
 def max_entropy_atoms_iterator():
 
-    from autopiad.binary_entropy.renorm import RandomEntropyInitializer
-    from autopiad.binary_entropy.optimizer import EntropyMaximizer
+    # from autopiad.binary_entropy.renorm import RandomEntropyInitializer
+    # from autopiad.binary_entropy.optimizer import EntropyMaximizer
+    from autopiad.multi_element_entropy.renorm import RandomEntropyInitializer
+    from autopiad.multi_element_entropy.optimizer import EntropyMaximizer
     import os
 
     os.makedirs("renorm_configs", exist_ok=True)
