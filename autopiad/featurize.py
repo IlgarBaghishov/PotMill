@@ -1,5 +1,5 @@
 
-def featurize(atoms_traj, config, fitsnap_config, rcuts, only_cost=False, hyperparameters_noeweight=None, batch_ID=None):
+def featurize(atoms_traj, config, fitsnap_config, rcuts, only_cost=False, hyperparameters_noeweight=None):
 
     import os
     import numpy as np
@@ -7,11 +7,16 @@ def featurize(atoms_traj, config, fitsnap_config, rcuts, only_cost=False, hyperp
     from fitsnap3lib.fitsnap import FitSnap
     from fitsnap3lib.scrapers.ase_funcs import ase_scraper
     from autopiad.tools import rcuts_to_string
-    
+
     comm = MPI.COMM_WORLD
     rank = comm.Get_rank()
     size = comm.Get_size()
-    if isinstance(atoms_traj, dict): atoms_traj = atoms_traj["atoms"]
+    if isinstance(atoms_traj, dict):
+        atoms_traj = atoms_traj["atoms"]
+    elif isinstance(atoms_traj, list):
+        if isinstance(atoms_traj[0], dict):
+            atoms_traj = [atoms["atoms"] for atoms in atoms_traj] 
+
     configs_num = len(atoms_traj)
     ratio = configs_num//size
     rem = configs_num%size
@@ -36,11 +41,8 @@ def featurize(atoms_traj, config, fitsnap_config, rcuts, only_cost=False, hyperp
     if rank == 0:
         os.system("rm -rf coupling_coefficients.yace *.pickle")
         if not only_cost:
-            if batch_ID:
-                np.save(f"a_{batch_ID}.npy")
-            else:
-                np.save("a.npy", fs.pt.shared_arrays["a"].array)
-        
+            np.save("a.npy", fs.pt.shared_arrays["a"].array)
+
             bnames = []
             if config['FitSNAP']['mlip'] == "ACE":
                 numtypes = fs.config.sections["ACE"].numtypes
