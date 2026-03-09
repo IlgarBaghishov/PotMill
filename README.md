@@ -1,6 +1,6 @@
 # autopiad
 
-Installation that worked on Chicoma:
+Installation that worked on Chicoma (it might be outdated now):
 
 module purge
 
@@ -28,6 +28,6 @@ mamba activate autopiad
 Check if flux installed properly:
 srun -N 2 -n 2 flux start flux resource list
 
-pip install fairchem-core ase-ga POPSRegression
+pip install fairchem-core ase-ga POPSRegression mendeleev
 
 Install LAMMPS and FitSNAP like it is explained in FitSNAP installation guide

@@ -13,6 +13,8 @@ examples/**
 !examples/WRe/
 !examples/WRe/ACE/
 !examples/WRe/SNAP/
+!examples/HBeW/
+!examples/HBeW/ACE/
 
 !examples/Be/ACE/inputfile
 !examples/Be/ACE/FitSNAP.in
@@ -34,3 +36,8 @@ examples/**
 !examples/WRe/SNAP/FitSNAP.in
 !examples/WRe/SNAP/run_debug.sh
 !examples/WRe/SNAP/run_vasp_6.3.2_std_ase.sh
+
+!examples/HBeW/ACE/inputfile
+!examples/HBeW/ACE/FitSNAP.in
+!examples/HBeW/ACE/run_perlmutter.sh
+!examples/HBeW/ACE/CLAUDE.md

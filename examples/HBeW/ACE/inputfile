@@ -1,0 +1,51 @@
+[MAIN]
+resume = 0
+entropy = 1
+featurize = 1
+labeling = 1
+fit = 1
+pareto = 1
+pops = 1
+nconfigurations = 100
+nconfigurations_per_fit = 20
+nconfigurations_for_cost = 10
+ncores_per_fit = 5
+auto_reduce_hyperparameters = 0
+
+[FitSNAP]
+mlip = ACE
+chem_elem = H Be W
+filename = FitSNAP.in
+
+[RCUT]
+min_rcut = 4
+max_rcut = 6
+num_rcut = 3
+
+[NMAX]
+min_nmax = 6 2
+max_nmax = 10 4
+
+[LMAX]
+min_lmax = 0 1
+max_lmax = 0 2
+
+[EWEIGHT]
+middle_eweight = 10
+num_eweights = 3
+constant = 1
+
+[STRUCTUREGEN]
+method = multi_element
+elements = H Be W
+twojmax = 8
+n_atoms = 12
+n_renorm_configs = 100
+n_optimizer_iterations = 10000
+energy_mode = 1
+epsilon = 1e-6
+radius_width = 0.3
+radius_beta_a = 1.25
+radius_beta_b = 1.25
+volume_scaling_min = 1.0
+volume_scaling_max = 3.5

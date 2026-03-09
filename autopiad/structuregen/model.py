@@ -1,4 +1,6 @@
+import gc
 import numpy as np
+import jax
 import jax.numpy as jaxnp
 from jax import grad, jit
 from functools import partial
@@ -54,6 +56,28 @@ class CNModel:
         self.cn_grad = grad(self.cn)
         self.K = 1
 
+    def update_state(self, cross_=None, count_=None, active=None, K=None):
+        """Update model state in-place, avoiding full re-initialization.
+
+        Since cn() uses @jit with static_argnums=(0,), JAX caches traces
+        by self identity. _clear_cache() only clears the Python dispatch
+        table but NOT the XLA compilation cache, so the compiled function
+        retains stale attribute values. We must use jax.clear_caches() to
+        fully flush all caches and force JAX to retrace with updated values.
+        """
+        if cross_ is not None and self.mask is not None:
+            self.cross = cross_[self.mask, :][:, self.mask]
+        if count_ is not None:
+            self.count = count_
+        if active is not None:
+            self.active = active
+        if K is not None:
+            self.K = K
+        # Must use jax.clear_caches() - _clear_cache() only clears the
+        # Python-level dispatch table, not the XLA compilation cache.
+        jax.clear_caches()
+        gc.collect()
+
     @partial(jit, static_argnums=(0,))
     def cn(self, descriptors):
         d = descriptors - self.mean
@@ -85,21 +109,11 @@ class CNModel:
             energy[:] = 0
             beta[:, :] = 0
 
-        # Cleanup JAX cache to prevent unbounded memory growth
+        # Cleanup JAX cache to prevent unbounded memory growth.
+        # With model reuse via update_state(), cache stays small (size 1-2).
+        # Only clear if it grows unexpectedly large.
         if self.cn._cache_size() > 30:
-            self.cn._clear_cache()
-            import gc
-            import sys
-            for module_name, module in list(sys.modules.items()):
-                if module_name.startswith("jax"):
-                    if module_name not in ["jax.interpreters.partial_eval"]:
-                        for obj_name in dir(module):
-                            obj = getattr(module, obj_name)
-                            if hasattr(obj, "cache_clear"):
-                                try:
-                                    obj.cache_clear()
-                                except Exception:
-                                    pass
+            jax.clear_caches()
             gc.collect()
 
 

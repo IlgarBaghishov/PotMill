@@ -171,3 +171,83 @@ This works because executorlib uses `cloudpickle` (not stdlib pickle) for serial
 **Legacy (kept for reference, not modified):**
 - `autopiad/binary_entropy/` - original binary implementation
 - `autopiad/multi_element_entropy/` - original multi-element implementation
+
+---
+
+## Completed: Performance optimizations for entropy maximization
+
+### Status: COMPLETE
+
+### 1. OMP_NUM_THREADS for LAMMPS SNAP parallelization
+
+- `__main__.py`: Passes `n_threads=32` into `structuregen_config`
+- `entropy.py`: Sets `OMP_NUM_THREADS`, `MKL_NUM_THREADS`, `OPENBLAS_NUM_THREADS` **before any LAMMPS/JAX/numpy imports** — critical because OpenMP thread pool size is locked at library load time
+- `entropy.py`: Configures JAX for CPU with 64-bit precision early
+
+### 2. Reuse LAMMPS calculators in binary optimizer
+
+- Binary path in `optimizer.py` creates `calculator_relax` and `calculator_min` once in `_init_binary()` with `keep_alive=True`
+- LAMMPS scripts are fixed for binary (same radii every iteration), so the same LAMMPS instances are reused across all ~5000-10000 iterations — avoids expensive LAMMPS process creation/teardown each time
+
+### 3. Model reuse via `update_state()`
+
+- `model.py`: Added `CNModel.update_state()` that updates `cross`, `count`, `active`, `K` in-place and clears the JIT cache
+- Both `_create_binary_config` and `_create_multi_element_config` in `optimizer.py` call `self.model.update_state()` instead of creating a new CNModel each iteration
+- Model is initialized once with `count_=1` (to avoid the early-return branch) and a dummy zero cross matrix
+- JIT cache stays at size 1-2 since it's always the same object being traced
+
+### 4. Simplified JAX cache clearing
+
+- `model.py`: Removed the expensive iteration over all `sys.modules` starting with "jax" and calling `cache_clear()` on every object
+- With model reuse, the JIT cache naturally stays small (size 1-2), so the threshold of 30 is rarely hit
+- When it does trigger, just `self.cn._clear_cache()` + `gc.collect()` is sufficient
+
+---
+
+## Completed: Multi-element entropy speedup via pure Python soft potential + early rejection
+
+### Status: COMPLETE - Tested on Perlmutter 2-node H-Be-W, full pipeline successful
+
+### Problem
+
+The multi_element entropy method was the pipeline bottleneck: 8 GPUs sat idle waiting for structures. Each of ~10,000 MC iterations created 2 LAMMPS processes and ran 130 relaxation steps, but ~99.6% of configs were rejected due to distance violations. Total: ~20,000 LAMMPS process creations and ~1.3M relaxation steps for just 40 accepted configs.
+
+### Solution: Three optimizations (math preserved 100%)
+
+#### 1. `SoftRepulsionCalculator` — pure Python soft potential (`calculator.py`)
+
+New ASE `Calculator` subclass implementing `V(r) = A[1 + cos(pi*r/r_c)]` (identical to LAMMPS soft pair_style) in pure Python using `ase.geometry.get_distances()` for MIC-correct periodic distances. For 12 atoms (66 pairs), this computes in microseconds vs ~100-500ms for LAMMPS process creation. Pair cutoff = `core_radii[i] + core_radii[j]`, matching the multi_element LAMMPS parameterization exactly.
+
+#### 2. Early distance check + deferred LAMMPS creation (`optimizer.py`, `renorm.py`)
+
+After pure-Python soft relaxation (30 steps), check distances BEFORE creating the LAMMPS `EntropyCalculator`. If distances fail, reject immediately with no LAMMPS overhead. Only create LAMMPS + write descriptor file + run entropy relaxation for configs that pass the distance check. This skips ~99.6% of the expensive LAMMPS work.
+
+#### 3. Skip entropy relaxation when model inactive (`optimizer.py`)
+
+For first 10 accepted configs (`active=False`), the entropy model returns zero energy/forces. The 100-step entropy relaxation was redundant (just repeating soft relaxation through hybrid/overlay). Now skipped — only `compute_descriptors()` is called for the single LAMMPS evaluation needed to get SNAP bispectrum.
+
+### Results (H-Be-W, 2 Perlmutter nodes, 128 cores, 8 GPUs)
+
+| Metric | Before | After |
+|---|---|---|
+| MC iterations for 40 configs | ~10,000 | **41** |
+| Acceptance rate | ~0.4% | **~95%** |
+| Distance rejections | ~9,960 | **1** |
+| LAMMPS processes created | ~20,000 | **~40** |
+| Entropy monotonically decreasing | Yes | **Yes (743 → 238)** |
+
+Entropy generation now outpaces GPU labeling — GPUs are fully utilized.
+
+### Why it works
+
+For multi_element with `strict_entropy_decrease=0` (default), acceptance is purely distance-based. The previous code spent ~99.6% of time creating LAMMPS processes and running relaxation for configs that would be rejected for distance violations. The `SoftRepulsionCalculator` produces identical physics to LAMMPS soft potential, so the early distance check after pure-Python soft relax is conservative and correct.
+
+### Files modified
+
+- `autopiad/structuregen/calculator.py` — Added `SoftRepulsionCalculator` class, added `from ase.calculators.calculator import Calculator, all_changes`
+- `autopiad/structuregen/optimizer.py` — Import `SoftRepulsionCalculator`, rewrote `_create_multi_element_config()` with pure Python soft relax, early distance check, deferred LAMMPS creation, conditional entropy relaxation
+- `autopiad/structuregen/renorm.py` — Import `SoftRepulsionCalculator`, rewrote `_create_multi_element_config()` with same optimizations
+
+### Detailed change log
+
+See `CHANGES_multi_element_speedup.txt` in the repository root for line-by-line diff descriptions, full code snippets, and mathematical verification.

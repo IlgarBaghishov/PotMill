@@ -89,6 +89,8 @@ def main():
     if "elements" not in structuregen_config:
         # Fall back to chem_elem from FitSNAP section for backwards compatibility
         structuregen_config["elements"] = config["FitSNAP"]["chem_elem"]
+    # Pass thread count so entropy worker can set OMP_NUM_THREADS before imports
+    structuregen_config["n_threads"] = 32
 
     rcuts_list = create_rcut_range(config["RCUT"]["min_rcut"],config["RCUT"]["max_rcut"],config["RCUT"]["num_rcut"])
     if mlip == "ACE":
@@ -149,16 +151,16 @@ def main():
     if pops_mode: pops_futures = []
 
     with flux.job.FluxExecutor() as flux_executor:
-        with FluxJobExecutor(flux_log_files=True, max_workers=all_ngpus, block_allocation=True, flux_executor=flux_executor
-                             resource_dict={"cores": 1, "gpus_per_core": 1, "num_nodes": 1,
-                                            "cwd": start_path+"labeling", "error_log_file": "error.out"}) as labeling_exe:  # add flux_executor_nesting=True,   also maybe or not this one: cache_directory=start_path+'labeling_cache'
+        with FluxJobExecutor(flux_log_files=True, max_workers=1,  # cache_directory=start_path+'entropy_cache',
+                                init_function=make_init_atoms_from_entropy(structuregen_config), block_allocation=True, flux_executor=flux_executor,
+                                resource_dict={"cores": 1, "gpus_per_core": 0, "num_nodes": 1, "threads_per_core": 32,
+                                            "cwd": start_path+"entropy", "error_log_file":"error.out"}) as entropy_exe:
+            
+            with FluxJobExecutor(flux_log_files=True, max_workers=all_ngpus, block_allocation=True, flux_executor=flux_executor,
+                                resource_dict={"cores": 1, "gpus_per_core": 1, "num_nodes": 1,
+                                                "cwd": start_path+"labeling", "error_log_file": "error.out"}) as labeling_exe:  # add flux_executor_nesting=True,   also maybe or not this one: cache_directory=start_path+'labeling_cache'
 
-            with FluxJobExecutor(flux_log_files=True, flux_executor=flux_executor) as exe:  # cache_directory=start_path+'main_cache'
-
-                with FluxJobExecutor(flux_log_files=True, max_workers=1,  # cache_directory=start_path+'entropy_cache',
-                                     init_function=make_init_atoms_from_entropy(structuregen_config), block_allocation=True, flux_executor=flux_executor
-                                     resource_dict={"cores": 1, "gpus_per_core": 0, "num_nodes": 1,
-                                                    "cwd": start_path+"entropy", "error_log_file":"error.out"}) as entropy_exe:
+                with FluxJobExecutor(flux_log_files=True, flux_executor=flux_executor) as exe:  # cache_directory=start_path+'main_cache'
 
                     if entropy_mode:
                         print("Entropy jobs submission...")
@@ -265,19 +267,29 @@ def main():
 
                     b_futures = b_futures[1:]
                     num_b_futures = len(b_futures)
+                    entropy_exe_shutdown = False
+                    labeling_exe_shutdown = False
                     while len(pareto_futures):
 
                         if entropy_mode:
                             entropy_atoms_futures = check_and_print_status(entropy_atoms_futures,
                                                                            "ENTROPY", nconfigurations)
+                            if not entropy_exe_shutdown and len(entropy_atoms_futures) == 0:
+                                entropy_exe.shutdown(wait=True)
+                                entropy_exe_shutdown = True
+                                print("ENTROPY EXECUTOR SHUT DOWN - resources freed")
 
-                        if feature_mode: 
+                        if feature_mode:
                             featurization_futures = check_and_print_status(featurization_futures, "FEATURIZATION",
                                                                         len(featurizations), list_of_lists=True)
 
-                        if labeling_mode: labeling_futures = check_and_print_status(labeling_futures, "LABELING", nconfigurations)
-
-                        if labeling_mode: b_futures = check_and_print_status(b_futures, "B_COLLECTING", num_b_futures)
+                        if labeling_mode:
+                            labeling_futures = check_and_print_status(labeling_futures, "LABELING", nconfigurations)
+                            b_futures = check_and_print_status(b_futures, "B_COLLECTING", num_b_futures)
+                            if not labeling_exe_shutdown and len(labeling_futures) == 0:
+                                labeling_exe.shutdown(wait=True)
+                                labeling_exe_shutdown = True
+                                print("LABELING EXECUTOR SHUT DOWN - resources freed")
 
                         if fit_mode: fitting_futures = check_and_print_status(fitting_futures, "FITTING", len(fits), list_of_lists=True)
 

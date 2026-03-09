@@ -9,7 +9,7 @@ from ase.calculators.lammpslib import LAMMPSlib
 
 from autopiad.structuregen.model import CNModel, CNManager
 from autopiad.structuregen.calculator import (
-    EntropyCalculator, compute_descriptors,
+    EntropyCalculator, SoftRepulsionCalculator, compute_descriptors,
     generate_random_cell_binary, generate_random_cell)
 from autopiad.structuregen.lammps_utils import (
     compute_n_descriptors, write_mliap_descriptor,
@@ -106,6 +106,39 @@ class EntropyMaximizer:
             self.n_descriptors_tot, energy_mode=self.energy_mode,
             mean=self.mean, renorm=self.renorm, epsilon=self.epsilon)
 
+        # Pre-compute distance thresholds (fixed across iterations)
+        self.min_dist_0 = self.core_radius_0 * 0.9
+        self.min_dist_1 = self.core_radius_1 * 0.9
+        self.min_dist_cross = self.core_radius_cross * 0.9
+
+        # Create model once with count_=1 so __init__ doesn't early-return.
+        # We'll update state via update_state() each iteration.
+        dummy_cross = np.zeros((self.n_descriptors_tot, self.n_descriptors_tot))
+        self.model = CNModel(
+            len(self.elements), self.n_descriptors_tot,
+            energy_mode=self.energy_mode, populations=None, mask=None,
+            cross_=dummy_cross, renorm_=self.renorm,
+            mean_=self.mean, count_=1, epsilon_=self.epsilon)
+        self.model.active = False
+        self.model.K = 0.0
+
+        # Generate LAMMPS scripts once (binary radii are fixed)
+        mliap_script, zero_script = generate_binary_lammps_scripts(
+            self.elements, self.descriptor_filename,
+            self.core_radius_0, self.core_radius_1, self.core_radius_cross,
+            self.min_dist_0, self.min_dist_1, self.min_dist_cross)
+
+        atom_types = {e: idx + 1 for idx, e in enumerate(self.elements)}
+        self.binary_atom_types = atom_types
+
+        # Create LAMMPS calculators once - reused across all iterations
+        self.calculator_relax = LAMMPSlib(
+            lmpcmds=zero_script.split("\n"), log_file=None,
+            keep_alive=True, atom_types=atom_types)
+        self.calculator_min = EntropyCalculator(
+            lmpcmds=mliap_script.split("\n"), log_file=None,
+            model=self.model, keep_alive=True, atom_types=atom_types)
+
     def _init_multi_element(self, config):
         self.n_atoms = config.get('n_atoms', config.get('n_atoms_max', 12))
         self.n_descriptors_tot = compute_n_descriptors(
@@ -130,6 +163,19 @@ class EntropyMaximizer:
             self.n_descriptors_tot, energy_mode=self.energy_mode,
             mean=self.mean, renorm=self.renorm, epsilon=self.epsilon)
 
+        # Create model once with count_=1 so __init__ doesn't early-return.
+        # We'll update state via update_state() each iteration.
+        # Note: for multi_element, LAMMPS calculators change each iteration
+        # (new pseudo-species), so only the model is reused.
+        dummy_cross = np.zeros((self.n_descriptors_tot, self.n_descriptors_tot))
+        self.model = CNModel(
+            self.n_atoms, self.n_descriptors_tot,
+            energy_mode=self.energy_mode, populations=None, mask=None,
+            cross_=dummy_cross, renorm_=self.renorm,
+            mean_=self.mean, count_=1, epsilon_=self.epsilon)
+        self.model.active = False
+        self.model.K = 0.0
+
     def looping(self):
         """Run Phase 2: entropy-maximizing Monte Carlo search.
 
@@ -151,14 +197,8 @@ class EntropyMaximizer:
         shape = random.choice(self.shapes)
         n_first = random.choice(range(1, n_atoms))
 
-        # Use fixed radii stored at init time
-        atom_types = {e: idx + 1 for idx, e in enumerate(self.elements)}
         symbols = (int(n_first) * [self.elements[0]] +
                    int(n_atoms - n_first) * [self.elements[1]])
-
-        min_dist_0 = self.core_radius_0 * 0.9
-        min_dist_1 = self.core_radius_1 * 0.9
-        min_dist_cross = self.core_radius_cross * 0.9
 
         # Compute target volume (matching original binary_entropy logic)
         volume_0 = ((np.sqrt(2) * self.core_radius_0) ** 3) / 4.0
@@ -168,33 +208,15 @@ class EntropyMaximizer:
 
         print(n_atoms, n_first, shape, target_volume)
 
-        # Create model with current state
-        model = CNModel(
-            len(self.elements), self.n_descriptors_tot,
-            energy_mode=self.energy_mode, populations=None, mask=None,
-            cross_=self.manager.cross, renorm_=self.renorm,
-            mean_=self.mean, count_=self.manager.count,
-            epsilon_=self.epsilon)
-
+        # Update model state in-place (reuses existing JIT-compiled traces)
         if self.i_accept < 10:
-            model.active = False
-            model.K = 0.0
+            self.model.update_state(
+                cross_=self.manager.cross, count_=self.manager.count,
+                active=False, K=0.0)
         else:
-            model.active = True
-            model.K = self.K
-
-        # Generate LAMMPS scripts using binary-specific templates
-        mliap_script, zero_script = generate_binary_lammps_scripts(
-            self.elements, self.descriptor_filename,
-            self.core_radius_0, self.core_radius_1, self.core_radius_cross,
-            min_dist_0, min_dist_1, min_dist_cross)
-
-        calculator_relax = LAMMPSlib(
-            lmpcmds=zero_script.split("\n"), log_file=None,
-            keep_alive=True, atom_types=atom_types)
-        calculator_min = EntropyCalculator(
-            lmpcmds=mliap_script.split("\n"), log_file=None,
-            model=model, keep_alive=True, atom_types=atom_types)
+            self.model.update_state(
+                cross_=self.manager.cross, count_=self.manager.count,
+                active=True, K=self.K)
 
         try:
             print("Generating atoms")
@@ -203,12 +225,12 @@ class EntropyMaximizer:
                 ratio_of_covalent_radii=0.5)
 
             print("Relaxing with core repulsion")
-            atoms.calc = calculator_relax
+            atoms.calc = self.calculator_relax
             opt = BFGSLineSearch(atoms, logfile=None)
             opt.run(fmax=0.05, steps=50)
 
             print("Relaxing with entropy model")
-            atoms.calc = calculator_min
+            atoms.calc = self.calculator_min
             opt = BFGSLineSearch(atoms, logfile=None)
             opt.run(fmax=0.05, steps=50)
 
@@ -221,8 +243,8 @@ class EntropyMaximizer:
                       "CURRENT:", self.current_cond, self.current_det)
 
             dists_cond = _check_distances_binary(
-                atoms, self.elements, atom_types,
-                min_dist_0, min_dist_1, min_dist_cross)
+                atoms, self.elements, self.binary_atom_types,
+                self.min_dist_0, self.min_dist_1, self.min_dist_cross)
 
             file_name = "configs/POSCAR_{}_{}".format(n_atoms, self.i_accept)
             accepted = False
@@ -271,36 +293,7 @@ class EntropyMaximizer:
         radii, radii_by_symbol = self.sampler(n_atoms)
         atom_types = {v['symbol']: v['species_id'] for v in radii.values()}
 
-        species_list = [radii[k]['symbol'] for k in sorted(radii.keys())]
-
-        # Write descriptor file for this configuration
-        write_mliap_descriptor_multi(
-            self.descriptor_filename, radii, self.twojmax, self.bzeroflag)
-
-        mliap_script, zero_script = generate_lammps_scripts(
-            radii, self.descriptor_filename)
-
-        # Create model with current state
-        model = CNModel(
-            n_atoms, self.n_descriptors_tot,
-            energy_mode=self.energy_mode, populations=None, mask=None,
-            cross_=self.manager.cross, renorm_=self.renorm,
-            mean_=self.mean, count_=self.manager.count,
-            epsilon_=self.epsilon)
-
-        if self.i_accept < 10:
-            model.active = False
-            model.K = 0.0
-        else:
-            model.active = True
-            model.K = self.K
-
-        calculator_relax = LAMMPSlib(
-            lmpcmds=zero_script.split("\n"), log_file=None,
-            keep_alive=True, atom_types=atom_types)
-        calculator_min = EntropyCalculator(
-            lmpcmds=mliap_script.split("\n"), log_file=None,
-            model=model, keep_alive=True, atom_types=atom_types)
+        species_list = sorted([radii[k]['symbol'] for k in radii.keys()])
 
         # Target volume from per-atom exclusion volumes
         target_volume = 0.0
@@ -324,13 +317,52 @@ class EntropyMaximizer:
             return
 
         try:
-            atoms.calc = calculator_relax
+            # Phase 1: Soft relaxation with pure Python calculator.
+            # Eliminates LAMMPS process creation overhead entirely.
+            core_radii = [radii[k]['r_core'] for k in sorted(radii.keys())]
+            soft_calc = SoftRepulsionCalculator(core_radii=core_radii, A=10.0)
+            atoms.calc = soft_calc
             opt = BFGSLineSearch(atoms, logfile=None)
             opt.run(fmax=0.05, steps=30)
 
+            # Early distance check: skip expensive LAMMPS entropy relaxation
+            # for configs that already fail distance constraints.
+            if not _check_distances_multi(atoms, radii, species_list):
+                self.n_reject_dist += 1
+                self.i_reject_dist += 1
+                self._adapt_K()
+                self._save_state(i, n_atoms, 0)
+                return
+
+            # Write descriptor file and generate LAMMPS scripts
+            write_mliap_descriptor_multi(
+                self.descriptor_filename, radii, self.twojmax, self.bzeroflag)
+            mliap_script, zero_script = generate_lammps_scripts(
+                radii, self.descriptor_filename)
+
+            # Update model state in-place (reuses existing JIT-compiled traces)
+            if self.i_accept < 10:
+                self.model.update_state(
+                    cross_=self.manager.cross, count_=self.manager.count,
+                    active=False, K=0.0)
+            else:
+                self.model.update_state(
+                    cross_=self.manager.cross, count_=self.manager.count,
+                    active=True, K=self.K)
+
+            # Create LAMMPS entropy calculator only after distance check passes.
+            calculator_min = EntropyCalculator(
+                lmpcmds=mliap_script.split("\n"), log_file=None,
+                model=self.model, keep_alive=True, atom_types=atom_types)
+
             atoms.calc = calculator_min
-            opt = BFGSLineSearch(atoms, logfile=None)
-            opt.run(fmax=0.05, steps=100)
+
+            # When model is active, run entropy-guided relaxation.
+            # When inactive (first 10 configs), entropy contributes zero forces
+            # so skip relaxation - just compute descriptors.
+            if self.model.active:
+                opt = BFGSLineSearch(atoms, logfile=None)
+                opt.run(fmax=0.05, steps=100)
 
             d = compute_descriptors(atoms)
             cand_cond, cand_det = self.manager.evaluate(d)
@@ -338,6 +370,7 @@ class EntropyMaximizer:
             if self.i_accept > 0:
                 print("CANDIDATE:", cand_det, "CURRENT:", self.current_det)
 
+            # Final distance check after entropy relaxation
             dists_ok = _check_distances_multi(atoms, radii, species_list)
 
             accepted = False
@@ -389,17 +422,23 @@ class EntropyMaximizer:
             print(e)
 
     def _adapt_K(self):
-        """Adapt the entropy strength parameter K based on rejection statistics."""
+        """Adapt the entropy strength parameter K based on rejection statistics.
+
+        Uses the same factors as the original multi_element_entropy code:
+        - K *= 1.2 when too many entropy rejections (increase exploration)
+        - K *= 0.8 when too many distance rejections (reduce entropy force)
+        - K *= 1.1 when too many acceptances (increase selectivity)
+        """
         if self.n_reject_improve > 10:
-            self.K *= 1.05
+            self.K *= 1.2
             self.n_reject_improve = 0
             self.n_reject_dist = 0
         if self.n_reject_dist > 10:
-            self.K *= 0.9
+            self.K *= 0.8
             self.n_reject_improve = 0
             self.n_reject_dist = 0
         if self.n_accept > 10:
-            self.K *= 1.005
+            self.K *= 1.1
             self.n_accept = 0
 
         print("K=", self.K, "n_reject_improve=", self.n_reject_improve,

@@ -1,8 +1,22 @@
 def max_entropy_atoms_iterator(structuregen_config):
 
+    import os
+
+    # Set threading environment BEFORE importing LAMMPS/JAX/numpy.
+    # LAMMPS SNAP bispectrum computation uses OpenMP, and JAX/MKL/OpenBLAS
+    # also respect these variables. Must be set before library import.
+    n_threads = str(structuregen_config.get('n_threads', 1))
+    os.environ['OMP_NUM_THREADS'] = n_threads
+    os.environ['MKL_NUM_THREADS'] = n_threads
+    os.environ['OPENBLAS_NUM_THREADS'] = n_threads
+
+    # Configure JAX for CPU with 64-bit precision
+    import jax
+    jax.config.update("jax_enable_x64", True)
+    jax.config.update("jax_platform_name", "cpu")
+
     from autopiad.structuregen.renorm import RandomEntropyInitializer
     from autopiad.structuregen.optimizer import EntropyMaximizer
-    import os
 
     os.makedirs("renorm_configs", exist_ok=True)
     os.makedirs("configs", exist_ok=True)

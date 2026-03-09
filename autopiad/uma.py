@@ -4,12 +4,11 @@ from ase import Atoms
 from ase.io import read, write
 from fairchem.core import FAIRChemCalculator
 
+calc = FAIRChemCalculator.from_model_checkpoint("uma-s-1p1", task_name="omat", device = "cuda")
 
 def uma(start_path, input_file, job_id, first_index, dirpath):
 
     os.chdir(dirpath)
-
-    calc = FAIRChemCalculator.from_model_checkpoint("uma-s-1p1", task_name="omat", device = "cuda")
 
     # #check whether this task has been executed already. If so, skip it
     # if os.path.isfile("b"):

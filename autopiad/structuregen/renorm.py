@@ -8,7 +8,7 @@ from ase.calculators.lammpslib import LAMMPSlib
 
 from autopiad.structuregen.model import CNModel, CNManager
 from autopiad.structuregen.calculator import (
-    EntropyCalculator, compute_descriptors,
+    EntropyCalculator, SoftRepulsionCalculator, compute_descriptors,
     generate_random_cell_binary, generate_random_cell)
 from autopiad.structuregen.lammps_utils import (
     compute_n_descriptors, write_mliap_descriptor,
@@ -184,26 +184,9 @@ class RandomEntropyInitializer:
         shape = random.choice(self.shapes)
 
         radii, radii_by_symbol = self.sampler(n_atoms)
-        atom_types = {v['symbol']: k for k, v in radii_by_symbol.items()
-                      if k in [radii[kk]['symbol'] for kk in radii]}
-        # Simpler: build atom_types from radii directly
         atom_types = {v['symbol']: v['species_id'] for v in radii.values()}
 
         species_list = [radii[k]['symbol'] for k in sorted(radii.keys())]
-
-        # Write descriptor file for this configuration's pseudo-species
-        write_mliap_descriptor_multi(
-            self.descriptor_filename, radii, self.twojmax, self.bzeroflag)
-
-        mliap_script, zero_script = generate_lammps_scripts(
-            radii, self.descriptor_filename)
-
-        calculator_relax = LAMMPSlib(
-            lmpcmds=zero_script.split("\n"), log_file=None,
-            keep_alive=True, atom_types=atom_types)
-        calculator_min = EntropyCalculator(
-            lmpcmds=mliap_script.split("\n"), log_file="lammps.log",
-            model=self.model, keep_alive=True, atom_types=atom_types)
 
         # Target volume from per-atom exclusion volumes
         target_volume = 0.0
@@ -217,17 +200,30 @@ class RandomEntropyInitializer:
                 radii, species_list, target_volume, shape=shape)
             print(i, atoms)
 
-            atoms.calc = calculator_relax
+            # Soft relaxation with pure Python calculator (no LAMMPS overhead)
+            core_radii = [radii[k]['r_core'] for k in sorted(radii.keys())]
+            soft_calc = SoftRepulsionCalculator(core_radii=core_radii, A=10.0)
+            atoms.calc = soft_calc
             atoms.get_potential_energy()
-            opt = BFGSLineSearch(atoms, logfile="min.log")
+            opt = BFGSLineSearch(atoms, logfile=None)
             opt.run(fmax=0.05, steps=30)
+
+            # No distance gating in Phase 1: update manager for ALL configs
+            # to capture the full range of descriptor values, matching the
+            # original d-opti-chem.py behavior.
+            write_mliap_descriptor_multi(
+                self.descriptor_filename, radii, self.twojmax, self.bzeroflag)
+            mliap_script, zero_script = generate_lammps_scripts(
+                radii, self.descriptor_filename)
+            calculator_min = EntropyCalculator(
+                lmpcmds=mliap_script.split("\n"), log_file=None,
+                model=self.model, keep_alive=True, atom_types=atom_types)
 
             atoms.calc = calculator_min
             d = compute_descriptors(atoms)
 
-            if _check_distances_multi(atoms, radii, species_list):
-                self.manager.update(d)
-                i += 1
+            self.manager.update(d)
+            i += 1
         except Exception as e:
             print(e)
 

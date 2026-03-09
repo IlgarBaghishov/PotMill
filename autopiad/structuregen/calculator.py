@@ -2,12 +2,74 @@ import ase
 import ase.build
 import ase.calculators.lammpslib
 import numpy as np
+from ase.calculators.calculator import Calculator, all_changes
 
 
 def compute_descriptors(atoms):
     """Compute SNAP bispectrum descriptors by triggering a LAMMPS evaluation."""
     atoms.get_potential_energy()
     return atoms.calc.entropy_model.last_bispectrum
+
+
+class SoftRepulsionCalculator(Calculator):
+    """Pure Python implementation of LAMMPS soft pair potential.
+
+    V(r) = A * [1 + cos(pi * r / r_c)] for r < r_c, 0 otherwise.
+
+    Much faster than LAMMPS for small systems (e.g., 12 atoms) because it
+    avoids LAMMPS process creation overhead entirely. Used for the initial
+    soft relaxation step before the entropy model relaxation.
+
+    Args:
+        core_radii: List of core radius for each atom (in atom order).
+            Pair cutoff for atoms i,j = core_radii[i] + core_radii[j].
+        A: Amplitude of the soft potential (default 10.0).
+    """
+    implemented_properties = ['energy', 'forces', 'stress']
+
+    def __init__(self, core_radii, A=10.0, **kwargs):
+        super().__init__(**kwargs)
+        self.core_radii = np.asarray(core_radii, dtype=float)
+        self.A = A
+
+    def calculate(self, atoms=None, properties=['energy'],
+                  system_changes=all_changes):
+        super().calculate(atoms, properties, system_changes)
+
+        n = len(self.atoms)
+        positions = self.atoms.get_positions()
+        cell = self.atoms.get_cell()
+        pbc = self.atoms.get_pbc()
+
+        # Get MIC displacement vectors and distances
+        from ase.geometry import get_distances
+        D, d = get_distances(positions, cell=cell, pbc=pbc)
+        # D[i,j] = vector from j to i with MIC, d[i,j] = |D[i,j]|
+
+        energy = 0.0
+        forces = np.zeros((n, 3))
+
+        for i in range(n):
+            ri = self.core_radii[i]
+            for j in range(i + 1, n):
+                r = d[i, j]
+                if r < 1e-10:
+                    continue
+                rc = ri + self.core_radii[j]
+                if r < rc:
+                    x = np.pi * r / rc
+                    energy += self.A * (1.0 + np.cos(x))
+                    # Force: F_i = -(dV/dr) * (r_i - r_j)/r (repulsive)
+                    # D[i,j] = pos[j] - pos[i], so -(r_i-r_j)/r = D[i,j]/r
+                    # dV/dr = -A*pi/rc*sin(x), so F_i = A*pi/rc*sin(x)/r * (-D[i,j])
+                    f_mag = self.A * np.pi / rc * np.sin(x) / r
+                    f_vec = f_mag * D[i, j]
+                    forces[i] -= f_vec  # push i away from j
+                    forces[j] += f_vec  # push j away from i
+
+        self.results['energy'] = energy
+        self.results['forces'] = forces
+        self.results['stress'] = np.zeros(6)
 
 
 class EntropyCalculator(ase.calculators.lammpslib.LAMMPSlib):
