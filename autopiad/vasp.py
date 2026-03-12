@@ -1,5 +1,5 @@
 import numpy as np
-import os, glob, sys, json
+import os, glob, sys, json, traceback
 import xml.etree.ElementTree as ET
 from ase import Atoms
 from ase.calculators.vasp import Vasp
@@ -130,13 +130,15 @@ def vasp(start_path, input_file, job_id, first_index, dirpath):
                     encut=300, # Plane-wave cutoff
                     ismear=1, lwave=False, lcharg=False, prec='Normal', nelm=100, ediff=1e-6, kspacing=1.0,
                     setups={'Re':'','W':''})#, directory=run_directory)  # setups='recommended'
-    except:
+    except Exception:
+        traceback.print_exc()
         try:
             calc = Vasp(xc='pbe',  # Select exchange-correlation functional
                         encut=500, # Plane-wave cutoff
                         ismear=1, lwave=False, lcharg=False, prec='Normal', nelm=100, ediff=1e-6, kspacing=0.5,
                         setups='recommended')#, directory=run_directory)  # setups='recommended'
-        except:
+        except Exception:
+            traceback.print_exc()
             raise
 
     if isinstance(input_file, Atoms):
@@ -146,7 +148,7 @@ def vasp(start_path, input_file, job_id, first_index, dirpath):
     atoms.pbc = True
     atoms.calc = calc
 
-    print("RUN DIRECTORY: ", os.getcwd(), " INPUT FILE: ", input_file)
+    print("RUN DIRECTORY: ", os.getcwd(), " INPUT FILE: ", input_file, flush=True)
 
     #execute the calculation
     try:
@@ -198,10 +200,12 @@ def vasp(start_path, input_file, job_id, first_index, dirpath):
                 if not file in absolute_files_to_keep:
                     os.remove(file)
             
-        except:
-            print("Error while cleaning up files")
-    except:
-        print("Error while running VASP or writing the output files")
+        except Exception:
+            print("Error while cleaning up files", flush=True)
+            traceback.print_exc()
+    except Exception:
+        print("Error while running VASP or writing the output files", flush=True)
+        traceback.print_exc()
 
     atoms.calc = None
     return {"job_ID":job_id, "atoms":atoms}

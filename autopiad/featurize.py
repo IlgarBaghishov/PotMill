@@ -23,7 +23,7 @@ def featurize(atoms_traj, config, fitsnap_config, rcuts, only_cost=False, hyperp
     a1 = rank*ratio + min(rank,rem)
     a2 = (rank+1)*ratio + min(rank,rem-1) + 1
 
-    print("rcuts = " + rcuts_to_string(rcuts))
+    print("rcuts = " + rcuts_to_string(rcuts), flush=True)
     if config['FitSNAP']['mlip'] == "ACE":
         if len(rcuts) == 1:
             fitsnap_config["ACE"]["rcutfac"] = rcuts_to_string(rcuts*(int(fitsnap_config["ACE"]["numTypes"])**2))

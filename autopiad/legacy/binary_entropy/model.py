@@ -2,6 +2,7 @@ import numpy as np
 import jax.numpy as jaxnp
 from jax import grad, jit, clear_caches
 from functools import partial
+import traceback
 
 
 
@@ -46,12 +47,12 @@ class CNModel:
         self.cn_grad=grad(self.cn)
         
         self.K = 1
-
+               
         
     @partial(jit, static_argnums=(0,))
     def cn(self,descriptors):
         d=descriptors-self.mean
-
+        
         if self.energy_mode:
             d=jaxnp.mean(descriptors,axis=0)
             d=d.reshape((1,-1))
@@ -79,7 +80,7 @@ class CNModel:
             beta[:, self.mask] = b
             
             if not jaxnp.all(jaxnp.isfinite(b)):
-                print("GRAD ERROR!")
+                print("GRAD ERROR!", flush=True)
                 #print(b)
           
         else:
@@ -100,11 +101,11 @@ class CNModel:
                             if hasattr(obj, "cache_clear"):
                                 try:
                                     obj.cache_clear()
-                                except:
-                                    pass
+                                except Exception:
+                                    traceback.print_exc()
 
             gc.collect()
-
+            
 
 class CNManager:
     def __init__(self, n_descriptors, epsilon=0, mean=None, renorm=None, energy_mode=True):
@@ -152,8 +153,8 @@ class CNManager:
         try:
             u,s,vh = np.linalg.svd(projected_information)
             self.s = s
-        except:
-            pass
+        except Exception:
+            traceback.print_exc()
     
         
     def evaluate(self,dd=None,key=None):

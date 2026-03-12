@@ -1,5 +1,5 @@
 import pandas as pd
-import os, copy, time, pickle
+import os, copy, time, pickle, traceback
 from ase.io import write
 from autopiad.tools import create_rcut_range, rcuts_to_string, nmaxes_to_string, lmaxes_to_string, twojmaxes_to_string
 from autopiad.tools import hyperparameters_to_string
@@ -25,18 +25,18 @@ def check_and_print_status(futures, name, total, list_of_lists=False):
                 done, futures[i] = concurrent.futures.wait(futures[i], timeout=0.1)
                 if len(done)!=0:
                     print(f"{len(futures[i])} {name}S REMAINING  --- {total-len(futures[i])} {name}S FINISHED  "
-                          f"--- {total} {name}S TOTAL")
+                          f"--- {total} {name}S TOTAL", flush=True)
                 break
     else:
         done, futures = concurrent.futures.wait(futures, timeout=0.1)
         if len(done)!=0:
             print(f"{len(futures)} {name}S REMAINING  --- {total-len(futures)} {name}S FINISHED  --- "
-                  f"{total} {name}S TOTAL")
+                  f"{total} {name}S TOTAL", flush=True)
     return futures
 
 
 def combine_b(start_path, vasp_IDs_finished, vasp_IDs_ready_for_fit):
-    print("Starting b.csv file preparation for the fit...")
+    print("Starting b.csv file preparation for the fit...", flush=True)
     new_b_files = " ".join(["vasp-em_%i/b" % job_id for job_id in vasp_IDs_finished])
     new_vasp_IDs_ready_for_fit = vasp_IDs_ready_for_fit + vasp_IDs_finished
     len1, len2 = len(vasp_IDs_ready_for_fit), len(new_vasp_IDs_ready_for_fit)
@@ -51,7 +51,7 @@ def main():
     all_ncores = rl.all.ncores
     all_ngpus = rl.all.ngpus
 
-    print("NODELIST:",rs.nodelist, " #CORES:",all_ncores, " #GPUS:",all_ngpus)
+    print("NODELIST:",rs.nodelist, " #CORES:",all_ncores, " #GPUS:",all_ngpus, flush=True)
 
     start_path = os.getcwd()+'/'
     config = parse_inputfile(start_path+"inputfile")
@@ -107,12 +107,14 @@ def main():
     # scan the available configurations and sort them by size
     try:
         df = pd.read_hdf(start_path + config["DATA"]["data_path"]).iloc[:500,:]
-    except:
+    except Exception:
+        traceback.print_exc()
         try:
             df = pd.read_pickle(start_path + config["DATA"]["data_path"], compression="gzip").iloc[:500,:]
             force_energy_filename = start_path + "force_energy.pkl"
             df.iloc[:,4:].to_pickle(force_energy_filename)
-        except:
+        except Exception:
+            traceback.print_exc()
             raise
     index0 = 0
     index1 = df.shape[0]
@@ -156,12 +158,12 @@ def main():
         with FluxJobExecutor(flux_log_files=True, cache_directory=start_path+'runs') as exe:
 
             if vasp_mode:
-                print("VASP jobs submission...")
+                print("VASP jobs submission...", flush=True)
                 for i in vasp_idxs:  # Loop over atomic configuration indices
                     vasp_ID = vasps[i][0]
                     input_file = "energy-configs/em_%i.dat"%vasp_ID
                     vasp_directory = start_path + "vasp-energy/vasp-em_%i/"%vasp_ID
-                    print("Submitting", vasp_ID, "on GPUs", vasp_directory, input_file)
+                    print("Submitting", vasp_ID, "on GPUs", vasp_directory, input_file, flush=True)
                     # fs = vasp_exe.submit(fake_vasp, force_energy_filename, vasp_ID, first_index[vasp_ID],
                     #                 resource_dict={"cores": 1, "gpus_per_core": 1, "num_nodes": 1, "cwd": vasp_directory})
                     fs = vasp_exe.submit(vasp, start_path, start_path+input_file, vasp_ID, first_index[vasp_ID],
@@ -183,8 +185,8 @@ def main():
 
             if feature_mode:
                 ncores_per_featurization = int((all_ncores - all_ngpus)/len(rs.nodelist)) - 3
-                print("FEATURIZATION jobs submission...")
-                print(f"Number of cores allocated for featurization step is {ncores_per_featurization}")
+                print("FEATURIZATION jobs submission...", flush=True)
+                print(f"Number of cores allocated for featurization step is {ncores_per_featurization}", flush=True)
                 for i in featurizations:  # Loop over rcuts_list indices
                     rcuts = rcuts_list[i]
                     feature_directory = start_path + "features/" + rcuts_to_string(rcuts, delimiter='_')
@@ -196,7 +198,7 @@ def main():
                     featurization_futures.append(fs)
 
             if fit_mode:
-                print("FITTING jobs submission...")
+                print("FITTING jobs submission...", flush=True)
                 for j, b_future in enumerate(b_futures[1:]):  # Loop over cumulative batches of finished vasp jobs
                     fitting_futures_temp = []
                     for i in fits:  # Loop over hyperparameters_list
@@ -214,7 +216,7 @@ def main():
                     fitting_futures.append(fitting_futures_temp)  # This is a list of per batch futures lists
 
             if pareto_mode:
-                print("COST jobs submission...")
+                print("COST jobs submission...", flush=True)
                 nconfigs4cost = config["MAIN"]["nconfigurations_for_cost"]
                 for i in costs:  # Loop over hyperparameters_list_noeweight
                     hyperparams = hyperparameters_list_noeweight[i]
@@ -229,7 +231,7 @@ def main():
                     fs.task_ = i
                     cost_futures.append(fs)
                 
-                print("PARETO jobs submission...")
+                print("PARETO jobs submission...", flush=True)
                 for i, fitting_futures_per_b in enumerate(fitting_futures):  # Loop over batches of fitting jobs
                     fs = exe.submit(pareto, start_path, i, fitting_futures_per_b, cost_futures, mlip,
                                     resource_dict={"cores": 1, "gpus_per_core": 0, "num_nodes": 1,
@@ -238,7 +240,7 @@ def main():
                     pareto_futures.append(fs)
 
             if pops_mode:
-                print("UNCERTAINTY QUANTIFICATION jobs submission...")
+                print("UNCERTAINTY QUANTIFICATION jobs submission...", flush=True)
                 for i in fits:  # Loop over hyperparameters_list
                     rcut_idx = rcuts_list.index(hyperparameters_list[i][0])
                     posp_directory = f"{start_path}pops/"

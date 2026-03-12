@@ -4,6 +4,7 @@ import numpy as np
 import random
 import copy
 import pickle
+import traceback
 import spglib
 import pandas as pd
 import ase.io.lammpsdata
@@ -219,8 +220,8 @@ class RandomEntropyInitializer:
         target_volume = Volume_WBe*random.uniform(0.9, 1.9)
         self.target_V.append(target_volume)
         
-        print(n_atoms, n_Be, shape, target_volume)
-        print(min_distance_W, min_distance_Be, min_distance_WBe)
+        print(n_atoms, n_Be, shape, target_volume, flush=True)
+        print(min_distance_W, min_distance_Be, min_distance_WBe, flush=True)
 
         symbols = int(n_Be)*["Re"] + int(n_atoms-n_Be)*["W"]
 
@@ -238,15 +239,15 @@ class RandomEntropyInitializer:
                                                 atom_types=self.atom_types)
 
         try:
-            print("Generating atoms")
+            print("Generating atoms", flush=True)
             ratio_of_covalent_radii = 0.5
             atoms = entropy.generate_random_cell(symbols, target_volume=target_volume, shape=shape, ratio_of_covalent_radii=ratio_of_covalent_radii)
 
             dists_Be, dists_W, dists_WBe = get_AB_distances(atoms)
-            print(np.min(dists_W), np.min(dists_Be), np.min(dists_WBe))
-            
+            print(np.min(dists_W), np.min(dists_Be), np.min(dists_WBe), flush=True)
+
             #relax with the core repulsion alone
-            print("Relaxing with core repulsion")
+            print("Relaxing with core repulsion", flush=True)
             atoms.calc = calculator_relax
             opt = BFGSLineSearch(atoms, logfile="log_relax")
             opt.run(fmax=0.05, steps=50)
@@ -256,7 +257,7 @@ class RandomEntropyInitializer:
             d = entropy.compute_descriptors(atoms)
                     
             dists_Be, dists_W, dists_WBe = get_AB_distances(atoms)
-            print(np.min(dists_W), np.min(dists_Be), np.min(dists_WBe))
+            print(np.min(dists_W), np.min(dists_Be), np.min(dists_WBe), flush=True)
 
             if (np.min(dists_Be) > min_distance_Be) and (np.min(dists_W) > min_distance_W) and (np.min(dists_WBe) > min_distance_WBe):
                 dists_cond = True
@@ -264,15 +265,16 @@ class RandomEntropyInitializer:
                 dists_cond = False
 
             if dists_cond:
-                print("Compute descriptors and update")
-                print(np.min(dists_W), np.min(dists_Be), np.min(dists_WBe))
+                print("Compute descriptors and update", flush=True)
+                print(np.min(dists_W), np.min(dists_Be), np.min(dists_WBe), flush=True)
                 self.target_D.append([np.min(dists_W), np.min(dists_Be), np.min(dists_WBe)])
                 self.manager_random.update(d)
                 ase.io.lammpsdata.write_lammps_data("renorm_configs/renorm_config_" + str(i) + ".dat", atoms)
                 i += 1
         except Exception as e:
-            print(e)
-        
-        print("\n")
+            print(e, flush=True)
+            traceback.print_exc()
+
+        print("\n", flush=True)
 
         return i

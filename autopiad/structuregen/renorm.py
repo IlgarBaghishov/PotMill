@@ -1,6 +1,7 @@
 import os
 import random
 import pickle
+import traceback
 import numpy as np
 import ase.io.lammpsdata
 from ase.optimize.bfgslinesearch import BFGSLineSearch
@@ -154,12 +155,12 @@ class RandomEntropyInitializer:
             model=self.model, keep_alive=True, atom_types=atom_types)
 
         try:
-            print("Generating atoms:", n_atoms, n_first, shape, target_volume)
+            print("Generating atoms:", n_atoms, n_first, shape, target_volume, flush=True)
             atoms = generate_random_cell_binary(
                 symbols, target_volume=target_volume, shape=shape,
                 ratio_of_covalent_radii=0.5)
 
-            print("Relaxing with core repulsion")
+            print("Relaxing with core repulsion", flush=True)
             atoms.calc = calculator_relax
             opt = BFGSLineSearch(atoms, logfile="log_relax")
             opt.run(fmax=0.05, steps=50)
@@ -169,13 +170,14 @@ class RandomEntropyInitializer:
 
             if _check_distances_binary(atoms, self.elements, atom_types,
                                        min_dist_0, min_dist_1, min_dist_cross):
-                print("Compute descriptors and update")
+                print("Compute descriptors and update", flush=True)
                 self.manager.update(d)
                 ase.io.lammpsdata.write_lammps_data(
                     "renorm_configs/renorm_config_{}.dat".format(i), atoms)
                 i += 1
         except Exception as e:
-            print(e)
+            print(e, flush=True)
+            traceback.print_exc()
 
         return i
 
@@ -198,7 +200,7 @@ class RandomEntropyInitializer:
         try:
             atoms = generate_random_cell(
                 radii, species_list, target_volume, shape=shape)
-            print(i, atoms)
+            print(i, atoms, flush=True)
 
             # Soft relaxation with pure Python calculator (no LAMMPS overhead)
             core_radii = [radii[k]['r_core'] for k in sorted(radii.keys())]
@@ -225,7 +227,8 @@ class RandomEntropyInitializer:
             self.manager.update(d)
             i += 1
         except Exception as e:
-            print(e)
+            print(e, flush=True)
+            traceback.print_exc()
 
         return i
 

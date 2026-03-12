@@ -11,6 +11,7 @@ from ase.data import covalent_radii, atomic_numbers
 import autopiad.binary_entropy.calculator as entropy
 from autopiad.binary_entropy.model import CNModel, CNManager
 # from pybispectrum import calc_bispectrum_names
+import traceback
 
 
 covalent = {"H": covalent_radii[atomic_numbers["H"]],
@@ -115,7 +116,7 @@ class EntropyMaximizer:
         radelems_W  = 0.5
         radelems_Be = np.round((rcut_Be*radelems_W)/rcut_W, 4)
         radelems = str(radelems_Be) + " " + str(radelems_W)
-        print(radelems, rcut_Be, rcut_W, radelems_Be*rcut_W*2)
+        print(radelems, rcut_Be, rcut_W, radelems_Be*rcut_W*2, flush=True)
 
         write_mliap_descriptor(rcutfac=rcut_W, twojmax=4, radelems=radelems)
 
@@ -182,10 +183,10 @@ class EntropyMaximizer:
         core_radii_WBe = NN_dists_WBe*np.arange(0.7, 1.8, 0.18)
         radii_to_sample = [[c_Be, c_WBe] for c_Be in core_radii_Be for c_WBe in core_radii_WBe]
 
-        print(len(radii_to_sample), 
-            "\nW:", self.core_radius_W, 
-            "\nRe:", core_radii_Be, 
-            "\nWRe:", core_radii_WBe)
+        print(len(radii_to_sample),
+            "\nW:", self.core_radius_W,
+            "\nRe:", core_radii_Be,
+            "\nWRe:", core_radii_WBe, flush=True)
 
         sl = 10
         # self.rad = radii_to_sample[sl]
@@ -232,7 +233,7 @@ class EntropyMaximizer:
         target_volume = Volume_WBe*random.uniform(1.0, 2.0)
         #target_volume = Volume_WBe*random.uniform(np.round(0.9**3, 2), 1.8)
 
-        print(n_atoms, n_Be, shape, target_volume)
+        print(n_atoms, n_Be, shape, target_volume, flush=True)
 
         symbols = int(n_Be)*["Re"] + int(n_atoms-n_Be)*["W"]
 
@@ -261,28 +262,28 @@ class EntropyMaximizer:
                                                 atom_types=self.atom_types)
 
         try:
-            print("Generating atoms")
+            print("Generating atoms", flush=True)
             ratio_of_covalent_radii = 0.5
             atoms = entropy.generate_random_cell(symbols, target_volume=target_volume, shape=shape, ratio_of_covalent_radii=ratio_of_covalent_radii)
 
             #relax with the core repulsion alone
-            print("Relaxing with core repulsion")
+            print("Relaxing with core repulsion", flush=True)
             atoms.calc = calculator_relax
             opt = BFGSLineSearch(atoms, logfile=None)#logfile="log_relax")
             opt.run(fmax=0.05, steps=50)
 
             #relax with the entropy model overlapped with the repulsion
-            print("Relaxing with entropy model")
+            print("Relaxing with entropy model", flush=True)
             atoms.calc = calculator_min
             opt = BFGSLineSearch(atoms, logfile=None)#logfile="log_entropy_model")
             opt.run(fmax=0.05, steps=50)
 
-            print("Compute descriptors and evaluate det")
+            print("Compute descriptors and evaluate det", flush=True)
             d = entropy.compute_descriptors(atoms)
             cand_cond, cand_det = self.manager.evaluate(d)
 
             if self.i_accept > 0:
-                print("CANDIDATE:", cand_cond, cand_det, "CURRENT:", self.current_cond, self.current_det, "\n")
+                print("CANDIDATE:", cand_cond, cand_det, "CURRENT:", self.current_cond, self.current_det, "\n", flush=True)
 
             dists_Be, dists_W, dists_WBe = get_AB_distances(atoms)
             if (np.min(dists_Be) > min_distance_Be) and (np.min(dists_W) > min_distance_W) and (np.min(dists_WBe) > min_distance_WBe):
@@ -290,15 +291,15 @@ class EntropyMaximizer:
             else:
                 dists_cond = False
 
-            print("n_atoms, n_Be, Be_conc, target volume: ", n_atoms, n_Be, Be_conc, target_volume)
-            print("Candidate distances (W, Be, WBe): ", np.min(dists_W), np.min(dists_Be), np.min(dists_WBe))
-            print("Results:i, diff: ", i, cand_det-self.current_det)
+            print("n_atoms, n_Be, Be_conc, target volume: ", n_atoms, n_Be, Be_conc, target_volume, flush=True)
+            print("Candidate distances (W, Be, WBe): ", np.min(dists_W), np.min(dists_Be), np.min(dists_WBe), flush=True)
+            print("Results:i, diff: ", i, cand_det-self.current_det, flush=True)
 
             file_name = "configs/POSCAR_"+str(n_atoms)+"_"+str(self.i_accept)
             if self.i_accept<=10 and dists_cond:
                 self.manager.update(d)
                 self.current_cond, self.current_det = self.manager.evaluate()
-                print("***CANDIDATE:", cand_cond, cand_det, "CURRENT:", self.current_cond, self.current_det)
+                print("***CANDIDATE:", cand_cond, cand_det, "CURRENT:", self.current_cond, self.current_det, flush=True)
                 if self.energy_mode:
                     write(file_name, atoms)
                 else:
@@ -315,7 +316,7 @@ class EntropyMaximizer:
                     self.n_reject_improve = 0
                     self.manager.update(d)
                     self.current_cond, self.current_det = self.manager.evaluate()
-                    print("***CANDIDATE:", cand_cond, cand_det, "CURRENT:", self.current_cond, self.current_det)
+                    print("***CANDIDATE:", cand_cond, cand_det, "CURRENT:", self.current_cond, self.current_det, flush=True)
                     if self.energy_mode:
                         write(file_name, atoms)
                     else:
@@ -336,7 +337,7 @@ class EntropyMaximizer:
                         self.n_reject_dist+=1
                         self.i_reject_dist+=1
 
-            print("K=", self.K, "n_reject_improve=", self.n_reject_improve, "n_reject_dist=", self.n_reject_dist)
+            print("K=", self.K, "n_reject_improve=", self.n_reject_improve, "n_reject_dist=", self.n_reject_dist, flush=True)
 
             if self.n_reject_improve > 10:
                 self.K *= 1.05
@@ -350,7 +351,7 @@ class EntropyMaximizer:
                 self.K *= 1.005
                 self.n_accept = 0
 
-            print("K=", self.K, "n_reject_improve=", self.n_reject_improve, "n_reject_dist=", self.n_reject_dist, "\n")
+            print("K=", self.K, "n_reject_improve=", self.n_reject_improve, "n_reject_dist=", self.n_reject_dist, "\n", flush=True)
 
             if i%10 == 0:
                 self.manager.print_status()
@@ -381,4 +382,5 @@ class EntropyMaximizer:
             pickle.dump(self.n_cond_acc, open("cond_acc.pckl", "wb"))
 
         except Exception as e:
-            print(e)
+            print(e, flush=True)
+            traceback.print_exc()

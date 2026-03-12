@@ -1,6 +1,8 @@
 import os
 import random
 import pickle
+import traceback
+import tempfile
 import numpy as np
 import ase.build
 from ase.io import write
@@ -61,6 +63,11 @@ class EntropyMaximizer:
         self.n_det_acc = []
         self.n_cond_all = []
         self.n_cond_acc = []
+
+        # Shared state for parallel workers
+        self._worker_id = config.get('_worker_id', 0)
+        self.shared_descriptor_dir = config.get('shared_descriptor_dir', None)
+        self._seen_descriptor_files = set()
 
         # Load renormalization data from Phase 1
         random_manager = pickle.load(open("random-manager.p", "rb"))
@@ -206,41 +213,44 @@ class EntropyMaximizer:
         target_volume = ((n_first * volume_0 + (n_atoms - n_first) * volume_1)
                          / n_atoms) * random.uniform(1.0, 2.0)
 
-        print(n_atoms, n_first, shape, target_volume)
-
-        # Update model state in-place (reuses existing JIT-compiled traces)
-        if self.i_accept < 10:
-            self.model.update_state(
-                cross_=self.manager.cross, count_=self.manager.count,
-                active=False, K=0.0)
-        else:
-            self.model.update_state(
-                cross_=self.manager.cross, count_=self.manager.count,
-                active=True, K=self.K)
+        print(n_atoms, n_first, shape, target_volume, flush=True)
 
         try:
-            print("Generating atoms")
+            # Sync shared descriptors from other parallel workers
+            self._sync_from_shared()
+
+            # Update model state in-place (reuses existing JIT-compiled traces)
+            if len(self.manager.data) < 10:
+                self.model.update_state(
+                    cross_=self.manager.cross, count_=self.manager.count,
+                    active=False, K=0.0)
+            else:
+                self.model.update_state(
+                    cross_=self.manager.cross, count_=self.manager.count,
+                    active=True, K=self.K)
+
+            print("Generating atoms", flush=True)
             atoms = generate_random_cell_binary(
                 symbols, target_volume=target_volume, shape=shape,
                 ratio_of_covalent_radii=0.5)
 
-            print("Relaxing with core repulsion")
+            print("Relaxing with core repulsion", flush=True)
             atoms.calc = self.calculator_relax
             opt = BFGSLineSearch(atoms, logfile=None)
             opt.run(fmax=0.05, steps=50)
 
-            print("Relaxing with entropy model")
+            print("Relaxing with entropy model", flush=True)
             atoms.calc = self.calculator_min
             opt = BFGSLineSearch(atoms, logfile=None)
             opt.run(fmax=0.05, steps=50)
 
-            print("Compute descriptors and evaluate det")
+            print("Compute descriptors and evaluate det", flush=True)
             d = compute_descriptors(atoms)
             cand_cond, cand_det = self.manager.evaluate(d)
 
             if self.i_accept > 0:
                 print("CANDIDATE:", cand_cond, cand_det,
-                      "CURRENT:", self.current_cond, self.current_det)
+                      "CURRENT:", self.current_cond, self.current_det, flush=True)
 
             dists_cond = _check_distances_binary(
                 atoms, self.elements, self.binary_atom_types,
@@ -249,7 +259,7 @@ class EntropyMaximizer:
             file_name = "configs/POSCAR_{}_{}".format(n_atoms, self.i_accept)
             accepted = False
 
-            if self.i_accept <= 10 and dists_cond:
+            if len(self.manager.data) <= 10 and dists_cond:
                 accepted = True
             elif dists_cond and ((self.strict_entropy_decrease and
                                   cand_det < self.current_det) or
@@ -270,8 +280,9 @@ class EntropyMaximizer:
 
             if accepted:
                 self.manager.update(d)
+                self._save_to_shared(d)
                 self.current_cond, self.current_det = self.manager.evaluate()
-                print("***ACCEPTED:", self.current_cond, self.current_det)
+                print("***ACCEPTED:", self.current_cond, self.current_det, flush=True)
                 write(file_name, atoms)
                 atoms.calc = None
                 yield atoms
@@ -284,7 +295,8 @@ class EntropyMaximizer:
             self._save_state(i, n_atoms, cand_det)
 
         except Exception as e:
-            print(e)
+            print(e, flush=True)
+            traceback.print_exc()
 
     def _create_multi_element_config(self, i):
         n_atoms = random.choice(self.N_atoms)
@@ -317,9 +329,10 @@ class EntropyMaximizer:
             return
 
         try:
-            # Phase 1: Soft relaxation with pure Python calculator.
+            # Soft relaxation with pure Python calculator.
             # Eliminates LAMMPS process creation overhead entirely.
-            core_radii = [radii[k]['r_core'] for k in sorted(radii.keys())]
+            species_index_map = {v['symbol']: k for k, v in radii.items()}
+            core_radii = [radii[species_index_map[s]]['r_core'] for s in species_list]
             soft_calc = SoftRepulsionCalculator(core_radii=core_radii, A=10.0)
             atoms.calc = soft_calc
             opt = BFGSLineSearch(atoms, logfile=None)
@@ -334,6 +347,9 @@ class EntropyMaximizer:
                 self._save_state(i, n_atoms, 0)
                 return
 
+            # Sync shared descriptors from other parallel workers
+            self._sync_from_shared()
+
             # Write descriptor file and generate LAMMPS scripts
             write_mliap_descriptor_multi(
                 self.descriptor_filename, radii, self.twojmax, self.bzeroflag)
@@ -341,7 +357,7 @@ class EntropyMaximizer:
                 radii, self.descriptor_filename)
 
             # Update model state in-place (reuses existing JIT-compiled traces)
-            if self.i_accept < 10:
+            if len(self.manager.data) < 10:
                 self.model.update_state(
                     cross_=self.manager.cross, count_=self.manager.count,
                     active=False, K=0.0)
@@ -368,13 +384,13 @@ class EntropyMaximizer:
             cand_cond, cand_det = self.manager.evaluate(d)
 
             if self.i_accept > 0:
-                print("CANDIDATE:", cand_det, "CURRENT:", self.current_det)
+                print("CANDIDATE:", cand_det, "CURRENT:", self.current_det, flush=True)
 
             # Final distance check after entropy relaxation
             dists_ok = _check_distances_multi(atoms, radii, species_list)
 
             accepted = False
-            if (self.i_accept <= 10) and dists_ok:
+            if (len(self.manager.data) <= 10) and dists_ok:
                 accepted = True
             elif dists_ok and ((self.strict_entropy_decrease and
                                 cand_det < self.current_det) or
@@ -395,6 +411,7 @@ class EntropyMaximizer:
 
             if accepted:
                 self.manager.update(d)
+                self._save_to_shared(d)
                 self.current_cond, self.current_det = self.manager.evaluate()
 
                 # Remap pseudo-species back to original species
@@ -419,7 +436,43 @@ class EntropyMaximizer:
             self._save_state(i, n_atoms, cand_det)
 
         except Exception as e:
-            print(e)
+            print(e, flush=True)
+            traceback.print_exc()
+
+    def _sync_from_shared(self):
+        """Load new descriptors from other workers' shared files."""
+        if not self.shared_descriptor_dir:
+            return
+        import glob
+        files = set(glob.glob(os.path.join(self.shared_descriptor_dir, "d_*.npy")))
+        new_files = files - self._seen_descriptor_files
+        if not new_files:
+            return
+        for fpath in sorted(new_files):
+            basename = os.path.basename(fpath)
+            file_worker_id = int(basename.split('_')[1])
+            if file_worker_id == self._worker_id:
+                self._seen_descriptor_files.add(fpath)
+                continue
+            try:
+                d = np.load(fpath)
+                self.manager.update(d)
+            except Exception:
+                # File may be partially written by another worker; skip and retry next sync
+                continue
+            self._seen_descriptor_files.add(fpath)
+
+    def _save_to_shared(self, d):
+        """Save accepted descriptor to shared directory via atomic rename."""
+        if not self.shared_descriptor_dir:
+            return
+        fname = f"d_{self._worker_id}_{self.i_accept}.npy"
+        fpath = os.path.join(self.shared_descriptor_dir, fname)
+        # Write to temp file then rename for atomicity (prevents partial reads)
+        fd, tmp_path = tempfile.mkstemp(dir=self.shared_descriptor_dir, suffix=".npy")
+        os.close(fd)
+        np.save(tmp_path, d)
+        os.rename(tmp_path, fpath)
 
     def _adapt_K(self):
         """Adapt the entropy strength parameter K based on rejection statistics.
@@ -442,7 +495,7 @@ class EntropyMaximizer:
             self.n_accept = 0
 
         print("K=", self.K, "n_reject_improve=", self.n_reject_improve,
-              "n_reject_dist=", self.n_reject_dist)
+              "n_reject_dist=", self.n_reject_dist, flush=True)
 
     def _save_state(self, i, n_atoms, cand_det):
         """Save current optimization state to files."""

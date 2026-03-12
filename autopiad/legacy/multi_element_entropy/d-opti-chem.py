@@ -1,4 +1,5 @@
 # %%
+import traceback
 import entropy_utils
 import numpy as np
 import random
@@ -997,7 +998,7 @@ trials_per_cycle=10000
 
 rr,rr_by_symbol=sample_radii(n_atoms)
 atom_types={ k:v['species_id'] for k,v in rr_by_symbol.items() }
-print(atom_types)
+print(atom_types, flush=True)
 
 manager_random=entropy_utils.CNManager(n_descriptors_tot)
 model=entropy_utils.CNModel(n_atoms, n_descriptors_tot, energy_mode=energy_mode, populations=None, mask=None, cross_=None, renorm_=None, mean_=None, count_=0, epsilon_=epsilon)
@@ -1013,15 +1014,15 @@ for i in range(100):
     n_at=n_atoms
     if i%1==0:
         #print(i,end=" ")
-        print(i)
-        
+        print(i, flush=True)
 
-    
+
+
     rr,rr_by_symbol=sample_radii(n_at)
 
     #atom_types={ k:v['species_id'] for k,v in rr_by_symbol.items() }
 
-    print(rr)
+    print(rr, flush=True)
 
     generate_min,generate_zero,snap_descriptors=entropy_utils.generate_lammps_scripts(rr,"./test")
     calculator_relax=LAMMPSlib(lmpcmds=generate_zero.split("\n"), log_file=None,keep_alive=True)
@@ -1054,13 +1055,13 @@ for i in range(100):
     while ntry<10:
         try:
             atoms = entropy_utils.generate_random_cell(rr, sampled_species, target_volume, shape=shape)
-            print(atoms)
+            print(atoms, flush=True)
             ntry+=1
             break
-        except:
+        except Exception:
             ntry+=1
-            pass
-    print(ntry)
+            traceback.print_exc()
+    print(ntry, flush=True)
     
     if not ntry==10:
         atoms.calc=calculator_relax 
@@ -1084,7 +1085,7 @@ for i in range(100):
             for a2 in range(len(atoms)):
                 dists[a1,a2]/=(rr[species_index_map[sampled_species[a1]]]["r_min"]+rr[species_index_map[sampled_species[a2]]]["r_min"])
                 
-        print("Relaxed min dist: ",np.min(dists))
+        print("Relaxed min dist: ",np.min(dists), flush=True)
 
 
 
@@ -1095,7 +1096,7 @@ import pickle
 pickle.dump( manager_random.data, open( "random-ref-data.p", "wb" ) )
 pickle.dump( manager_random, open( "random-manager.p", "wb" ) )
         
-print(manager_random.cross,manager_random.sum)
+print(manager_random.cross,manager_random.sum, flush=True)
 manager_random.evaluate()
 
 
@@ -1119,7 +1120,7 @@ mean=manager_random.sum/manager_random.count
 covariance=manager_random.cross/manager_random.count-np.outer(mean,mean)
 var=np.sqrt(np.diagonal(covariance))
 renorm=np.outer(var,var)
-print(mean)
+print(mean, flush=True)
 #print(np.divide(covariance,renorm))
 
 
@@ -1211,7 +1212,7 @@ for iii in range(1):
         #print("MASK: ",mask)
         rr,rr_by_symbol=sample_radii(n_atoms)
         atom_types={ k:v['species_id'] for k,v in rr_by_symbol.items() }
-        print(rr)
+        print(rr, flush=True)
 
         specorder=[v['symbol'] for k,v in rr.items()]
         generate_min,generate_zero,snap_descriptors=entropy_utils.generate_lammps_scripts(rr,"./test")
@@ -1263,9 +1264,9 @@ for iii in range(1):
                 atoms = entropy_utils.generate_random_cell(rr, sampled_species, target_volume=target_volume, shape=shape)
                 ntry+=1
                 break
-            except:
+            except Exception:
                 ntry+=1
-                pass
+                traceback.print_exc()
 
 
         
@@ -1278,7 +1279,7 @@ for iii in range(1):
                 for a2 in range(len(atoms)):
                     dists[a1,a2]/=(rr[species_index_map[sampled_species[a1]]]["r_min"]+rr[species_index_map[sampled_species[a2]]]["r_min"])
                 
-            print("As prepared min dist: ",np.min(dists))
+            print("As prepared min dist: ",np.min(dists), flush=True)
             
 
 
@@ -1307,7 +1308,7 @@ for iii in range(1):
             cand_cond,cand_det=manager.evaluate(d)
                 
             if i>1:
-                print("CANDIDATE: ",cand_det, " CURRENT: ",current_det)
+                print("CANDIDATE: ",cand_det, " CURRENT: ",current_det, flush=True)
             
             dists=atoms.get_all_distances(mic=True)
             dists+=1000*np.identity(n_at)
@@ -1318,7 +1319,7 @@ for iii in range(1):
                 for a2 in range(len(atoms)):
                     dists[a1,a2]/=(rr[species_index_map[sampled_species[a1]]]["r_min"]+rr[species_index_map[sampled_species[a2]]]["r_min"])
             
-            print(i,cand_det-current_det, "min dist: ",np.min(dists),end=" ")
+            print(i,cand_det-current_det, "min dist: ",np.min(dists),end=" ", flush=True)
             
 
             
@@ -1331,9 +1332,9 @@ for iii in range(1):
             
                 
 
-            print("*****", i_accept, i_accept_batch, min_accept_per_cycle, np.min(dists) )
+            print("*****", i_accept, i_accept_batch, min_accept_per_cycle, np.min(dists), flush=True)
             if (i_accept<=10 or i_accept_batch<min_accept_per_cycle) and np.min(dists) > 1:
-                print("ACCEPT BY DEFAULT")
+                print("ACCEPT BY DEFAULT", flush=True)
                 manager.update(d)
                 current_cond,current_det=manager.evaluate()
 
@@ -1346,7 +1347,7 @@ for iii in range(1):
                 #print(remapped_species)
                 atoms.set_chemical_symbols(remapped_species)
                 atoms=ase.build.sort(atoms)
-                print(atoms)
+                print(atoms, flush=True)
                 #print(atoms.symbols)
                 s=atoms.symbols.get_chemical_formula()
                 if s in counter_dict:
@@ -1360,7 +1361,7 @@ for iii in range(1):
 
                 #output_file=str(Path(c).parents[0])+"/"+Path(c).stem + ".vasp"
                 output_file=str(output_prefix+"/"+s+s2+(".%i"%counter_dict[s]))+".vasp"
-                print(output_file)
+                print(output_file, flush=True)
                 write(output_file,atoms,format='vasp')
                 
                 """
@@ -1382,7 +1383,7 @@ for iii in range(1):
             else:
                 #if cand_det < current_det and np.min(dists) > min_distance:
                 if np.min(dists) > 1 and ( (strict_entropy_decrease and cand_det < current_det ) or not strict_entropy_decrease):
-                    print("ACCEPT BY CRITERION")
+                    print("ACCEPT BY CRITERION", flush=True)
 
                     #if np.min(dists) > min_distance:
                     n_reject_dist=0
@@ -1400,7 +1401,7 @@ for iii in range(1):
                     #print(remapped_species)
                     atoms.set_chemical_symbols(remapped_species)
                     atoms=ase.build.sort(atoms)
-                    print(atoms)
+                    print(atoms, flush=True)
                     #print(atoms.symbols)
                     s=atoms.symbols.get_chemical_formula()
                     if s in counter_dict:
@@ -1415,7 +1416,7 @@ for iii in range(1):
                         s2=".f"
 
                     output_file=str(output_prefix+"/"+s+s2+(".%i"%counter_dict[s]))+".vasp"
-                    print(output_file)
+                    print(output_file, flush=True)
                     write(output_file,atoms,format='vasp')
                     #count+=1
 
@@ -1435,7 +1436,7 @@ for iii in range(1):
                     dists=atoms.get_all_distances(mic=True)
                     bond_lengths+=dists.flatten().tolist()
                 else:
-                    print("REJECTED")
+                    print("REJECTED", flush=True)
                     print()
                 
             if i%10==0:
@@ -1455,7 +1456,7 @@ for iii in range(1):
                 n_accept=0
                 
                 
-            print("K=",K, n_reject_improve,n_reject_dist,model.count)
+            print("K=",K, n_reject_improve,n_reject_dist,model.count, flush=True)
             if i_accept>500:
                 break
             

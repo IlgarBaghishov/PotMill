@@ -138,7 +138,7 @@ def generate_random_cell(atom_numbers, target_volume, shape=[1,1,1], ratio_of_co
     slab.set_pbc([True, True, True])
     unique_atom_types = list(set([ x if isinstance(x,int) else  atomic_numbers[x] for x in atom_numbers ]))
     blmin = closest_distances_generator(atom_numbers=unique_atom_types,ratio_of_covalent_radii=ratio_of_covalent_radii)
-    print(blmin)
+    print(blmin, flush=True)
     sg = StartGenerator(slab, atom_numbers, blmin)
     atoms = sg.get_new_candidate(maxiter=1000)
     #use pbc by default

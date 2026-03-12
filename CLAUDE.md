@@ -140,17 +140,22 @@ _check_distances_binary(atoms, elements, atom_types, min_dist_0, min_dist_1, min
 ```
 Each pair type has its own single-radius threshold (NOT sum-of-radii). Handles edge cases: 2-atom cells, single atom of a type (uses min cell length as proxy distance).
 
-### executorlib init_function: closure pattern
+### executorlib init_function: closure pattern with worker ID injection
 
-executorlib's `init_function` is called with NO arguments (hardcoded `args=(), kwargs={}`). To pass config:
+executorlib supports automatic parameter injection via signature introspection. Each worker maintains a `memory` dict containing `{"executorlib_worker_id": <int>}`. When calling any function (including `init_function`), executorlib uses `inspect.getfullargspec()` to check if the function declares an `executorlib_worker_id` parameter — if so, it injects the value from memory as a keyword argument. If the function declares no such parameter, it is called with no arguments (the `args=()` and `kwargs={}` are empty by default).
+
+To pass config AND receive the worker ID:
 ```python
 def make_init_atoms_from_entropy(structuregen_config):
-    def init_atoms_from_entropy():
+    def init_atoms_from_entropy(executorlib_worker_id):
+        # executorlib_worker_id is auto-injected by executorlib
+        worker_config = structuregen_config.copy()
+        worker_config['_worker_id'] = executorlib_worker_id
         from autopiad.entropy import max_entropy_atoms_iterator
-        return {"entropy_iterator": max_entropy_atoms_iterator(structuregen_config)}
+        return {"entropy_iterator": max_entropy_atoms_iterator(worker_config)}
     return init_atoms_from_entropy
 ```
-This works because executorlib uses `cloudpickle` (not stdlib pickle) for serialization, which handles closures with captured variables.
+The closure works because executorlib uses `cloudpickle` (not stdlib pickle) for serialization, which handles closures with captured variables. The worker ID injection works for any submitted function, not just `init_function`.
 
 ### Files created/modified in this refactoring
 

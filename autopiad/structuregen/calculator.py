@@ -41,10 +41,8 @@ class SoftRepulsionCalculator(Calculator):
         cell = self.atoms.get_cell()
         pbc = self.atoms.get_pbc()
 
-        # Get MIC displacement vectors and distances
         from ase.geometry import get_distances
         D, d = get_distances(positions, cell=cell, pbc=pbc)
-        # D[i,j] = vector from j to i with MIC, d[i,j] = |D[i,j]|
 
         energy = 0.0
         forces = np.zeros((n, 3))
@@ -59,13 +57,10 @@ class SoftRepulsionCalculator(Calculator):
                 if r < rc:
                     x = np.pi * r / rc
                     energy += self.A * (1.0 + np.cos(x))
-                    # Force: F_i = -(dV/dr) * (r_i - r_j)/r (repulsive)
-                    # D[i,j] = pos[j] - pos[i], so -(r_i-r_j)/r = D[i,j]/r
-                    # dV/dr = -A*pi/rc*sin(x), so F_i = A*pi/rc*sin(x)/r * (-D[i,j])
                     f_mag = self.A * np.pi / rc * np.sin(x) / r
                     f_vec = f_mag * D[i, j]
-                    forces[i] -= f_vec  # push i away from j
-                    forces[j] += f_vec  # push j away from i
+                    forces[i] -= f_vec
+                    forces[j] += f_vec
 
         self.results['energy'] = energy
         self.results['forces'] = forces

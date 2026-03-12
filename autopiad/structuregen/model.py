@@ -104,7 +104,7 @@ class CNModel:
             beta[:, :] = 0
             beta[:, self.mask] = b
             if not jaxnp.all(jaxnp.isfinite(b)):
-                print("GRAD ERROR!")
+                print("GRAD ERROR!", flush=True)
         else:
             energy[:] = 0
             beta[:, :] = 0
@@ -164,7 +164,8 @@ class CNManager:
             u, s, vh = np.linalg.svd(projected_information)
             self.s = s
         except Exception:
-            pass
+            import traceback
+            traceback.print_exc()
 
     def evaluate(self, dd=None, key=None):
         effective_count = self.count

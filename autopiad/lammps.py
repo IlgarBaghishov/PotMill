@@ -1,5 +1,5 @@
 import numpy as np
-import os, glob, sys, json
+import os, glob, sys, json, traceback
 import xml.etree.ElementTree as ET
 from ase.io import read, write
 from shutil import make_archive
@@ -29,7 +29,7 @@ def lammps(start_path, input_file, job_id, first_index):
     atoms.pbc = True
     atoms.calc = calc
 
-    print("RUN DIRECTORY: ", os.getcwd(), " INPUT FILE: ", input_file)
+    print("RUN DIRECTORY: ", os.getcwd(), " INPUT FILE: ", input_file, flush=True)
 
     #execute the calculation
     try:
@@ -46,7 +46,8 @@ def lammps(start_path, input_file, job_id, first_index):
         write("atoms_%i.traj" % job_id,images=atoms,format='traj')
 
         # #look into using Custodian here to do error detection/validation
-    except:
-        print("Error while running LAMMPS or writing the output files")
+    except Exception:
+        print("Error while running LAMMPS or writing the output files", flush=True)
+        traceback.print_exc()
 
     return job_id

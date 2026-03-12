@@ -21,7 +21,7 @@ from functools import partial
 
 from mendeleev.fetch import fetch_table
 
-
+import traceback
 
 
 import itertools
@@ -74,7 +74,7 @@ class MendeleevUniformRadiusSampler():
             comb=random_combination_with_replacement(species,n_atoms)
 
 
-        print("MendeleevUniformRadiusSampler ",comb)
+        print("MendeleevUniformRadiusSampler ",comb, flush=True)
         radii={}
         radii_by_symbol={}
         for i,c in enumerate(comb):
@@ -209,7 +209,7 @@ class CNModel:
             beta[:, self.mask] = b
             
             if not jaxnp.all(jaxnp.isfinite(b)):
-                print("GRAD ERROR!")
+                print("GRAD ERROR!", flush=True)
                 #print(b)
 
           
@@ -291,10 +291,10 @@ class CNManager:
             #print(s)
             #print("CURRENT DB: ",self.count, keep, " PROJECTED: ", np.linalg.cond(projected_information), -np.log( np.linalg.det(projected_information)), "RAW: ", np.linalg.cond(information), -np.log( np.linalg.det(information)) , flush=True)
             #print(len(self.data))
-        except:
-            pass
-    
-        
+        except Exception:
+            traceback.print_exc()
+
+
     def evaluate(self,dd=None,key=None):
         effective_count=self.count
         if not dd is None:
@@ -302,17 +302,17 @@ class CNManager:
             if self.energy_mode:
                 dt=np.mean(dt,axis=0)
                 dt=dt.reshape((1,-1))
-            
+
             cross=self.cross.copy()
             cross+=dt.T@dt
             effective_count+=dt.shape[0]
-            information=(cross)/effective_count 
+            information=(cross)/effective_count
         else:
-            information= self.cross/effective_count 
-            
+            information= self.cross/effective_count
+
         projected_information=np.divide(information,self.renorm) + self.reg
         self.projected_information=projected_information
-        
+
         (sign, logabsdet) = np.linalg.slogdet(projected_information)
 
         return np.linalg.cond(projected_information), -logabsdet

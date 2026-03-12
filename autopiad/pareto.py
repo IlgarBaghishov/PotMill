@@ -47,7 +47,7 @@ def pareto(start_path, vasp_batch_idx, hyperparameters_list, hyperparameters_lis
                 not_minima_list.append(i)
                 break
     minima_list = [i for i in range(results_df.shape[0]) if i not in not_minima_list]
-    print("Number of points on Pareto Front is", len(minima_list))
+    print("Number of points on Pareto Front is", len(minima_list), flush=True)
 
     results_df["pareto_front"] = 0
     results_df.loc[minima_list, "pareto_front"] = 1

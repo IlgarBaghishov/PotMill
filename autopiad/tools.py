@@ -30,7 +30,7 @@ def hyperparameters_to_string(mlip, hyperparameters, delimiter=" ", w_eweight=Tr
     elif mlip.upper() == "SNAP":
         return snap_hyperparameters_to_string(hyperparameters, delimiter, w_eweight)
     else:
-        print("MLIP types supported are only ACE and SNAP")
+        print("MLIP types supported are only ACE and SNAP", flush=True)
 
 
 def ace_hyperparameters_to_string(hyperparameters, delimiter=" ", w_eweight=True):

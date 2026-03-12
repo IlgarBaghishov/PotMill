@@ -24,7 +24,7 @@ def fit(features_directory, feature_names, vasp_IDs_ready_for_fit, hyperparamete
         rcuts, twojmaxes, eweight = hyperparameters
         feature_indices = [i for i, lst in enumerate(feature_names) if len(lst)==1 or all(value <= twojmaxes[0] for value in lst[1:])]
     
-    print(len(feature_indices), len(feature_names))
+    print(len(feature_indices), len(feature_names), flush=True)
     b_size = len(vasp_IDs_ready_for_fit)
     b_vect = pd.read_csv(f"{features_directory}b{b_size}.csv", index_col=0, header=None).sort_index()
     a_matr = []
@@ -48,13 +48,13 @@ def fit(features_directory, feature_names, vasp_IDs_ready_for_fit, hyperparamete
 
     for fold in range(n_fold):
 
-        print("===================== FOLD ",fold," OF ",n_fold,"=====================")
+        print("===================== FOLD ",fold," OF ",n_fold,"=====================", flush=True)
         if mlip == "ACE":
-            print("Hyperparameters rcut, nmax, lmax and eweight are " + rcuts_to_string(rcuts) + ", " + 
-                nmaxes_to_string(nmaxes) + ", " + lmaxes_to_string(lmaxes) + " and %.3f"%eweight)
+            print("Hyperparameters rcut, nmax, lmax and eweight are " + rcuts_to_string(rcuts) + ", " +
+                nmaxes_to_string(nmaxes) + ", " + lmaxes_to_string(lmaxes) + " and %.3f"%eweight, flush=True)
         if mlip == "SNAP":
-            print("Hyperparameters rcut, 2Jmax and eweight are " + rcuts_to_string(rcuts) + ", " + 
-                twojmaxes_to_string(twojmaxes) + " and %.3f"%eweight)
+            print("Hyperparameters rcut, 2Jmax and eweight are " + rcuts_to_string(rcuts) + ", " +
+                twojmaxes_to_string(twojmaxes) + " and %.3f"%eweight, flush=True)
         
         random.seed(fold)
         random.shuffle(job_ids)
@@ -98,11 +98,11 @@ def fit(features_directory, feature_names, vasp_IDs_ready_for_fit, hyperparamete
         a_f_train_w = np.multiply(fweights_train[:,None],a_train[force_selector_train])
         b_e_train_w = np.multiply(eweights_train,b_train[energy_selector_train])
         b_f_train_w = np.multiply(fweights_train,b_train[force_selector_train])
-        print(a_e_train_w.shape, a_f_train_w.shape)
+        print(a_e_train_w.shape, a_f_train_w.shape, flush=True)
 
         a_stack = np.concatenate([a_e_train_w,a_f_train_w])
         b_stack = np.concatenate([b_e_train_w,b_f_train_w])
-        print(a_stack.shape, b_stack.shape)
+        print(a_stack.shape, b_stack.shape, flush=True)
 
         beta, *_ = np.linalg.lstsq(a_stack, b_stack, rcond)
 
@@ -111,15 +111,15 @@ def fit(features_directory, feature_names, vasp_IDs_ready_for_fit, hyperparamete
         train_f_rmse = np.sqrt(np.mean(train_residual[force_selector_train]))
         train_e_rmse_weighted = np.sqrt(np.sum(np.multiply(eweights_train,train_residual[energy_selector_train])))
         train_f_rmse_weighted = np.sqrt(np.sum(np.multiply(fweights_train,train_residual[force_selector_train])))
-        print("Energy training RMSE is", np.sqrt(np.mean(train_residual[energy_selector_train])))
-        print("Force training RMSE is", np.sqrt(np.mean(train_residual[force_selector_train])))
+        print("Energy training RMSE is", np.sqrt(np.mean(train_residual[energy_selector_train])), flush=True)
+        print("Force training RMSE is", np.sqrt(np.mean(train_residual[force_selector_train])), flush=True)
         test_residual = np.square(np.dot(a_test,beta) - b_test)
         test_e_rmse = np.sqrt(np.mean(test_residual[energy_selector_test]))
         test_f_rmse = np.sqrt(np.mean(test_residual[force_selector_test]))
         test_e_rmse_weighted = np.sqrt(np.sum(np.multiply(eweights_test,test_residual[energy_selector_test])))
         test_f_rmse_weighted = np.sqrt(np.sum(np.multiply(fweights_test,test_residual[force_selector_test])))
-        print("Energy testing RMSE is", np.sqrt(np.mean(test_residual[energy_selector_test])))
-        print("Force testing RMSE is", np.sqrt(np.mean(test_residual[force_selector_test])))
+        print("Energy testing RMSE is", np.sqrt(np.mean(test_residual[energy_selector_test])), flush=True)
+        print("Force testing RMSE is", np.sqrt(np.mean(test_residual[force_selector_test])), flush=True)
         
 
         with open("results.csv","a") as file:
