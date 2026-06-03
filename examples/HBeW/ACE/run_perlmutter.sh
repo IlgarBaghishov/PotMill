@@ -1,22 +1,49 @@
 #!/bin/bash
-#SBATCH -J HBeW
-#SBATCH --account=m1883_g
-#SBATCH --constraint=gpu
+# Reproduces the 100k 4rcut HBeW run (~2h wall, zero errors on Perlmutter).
+# Submit with:  sbatch run_perlmutter.sh
+# Edit the paths in the "USER-SPECIFIC PATHS" block below to match your install.
+#
+# Per the main CLAUDE.md "Run directory placement", submit from $SCRATCH (Lustre
+# is ~1.7x faster than CFS for the many small per-config writes). Easiest pattern:
+#   cd $SCRATCH/autopiad_experiments
+#   mkdir my_run && cd my_run
+#   cp <repo>/examples/HBeW/ACE/{inputfile,FitSNAP.in,run_perlmutter.sh} .
+#   sbatch run_perlmutter.sh
+
+#SBATCH -J autopiad_HBeW
+#SBATCH -A m1883_g
+#SBATCH -C gpu
 #SBATCH --gpus-per-node=4
-#SBATCH --output=slurm_minimal_%j.log
-#SBATCH -q debug
-#SBATCH --nodes=2
+#SBATCH -N 4
 #SBATCH --ntasks-per-node=1
-#SBATCH -t 00:30:00
+#SBATCH -q premium
+#SBATCH -t 04:00:00
+#SBATCH -o run.%j.log
+
+set -uo pipefail
+
+# ---------- USER-SPECIFIC PATHS (edit me) -----------------------------------
+CONDA_ENV=/global/cfs/cdirs/m1883/ilgar/conda_envs/autopiad   # conda env with jax, ase, lammps, fitsnap3lib, fairchem, torch, executorlib
+AUTOPIAD=$HOME/codes/autopiad                                  # this repo's clone
+EXECUTORLIB=$HOME/codes/executorlib/src                        # executorlib clone with the PR #589 dynamic max_workers + id()-dedup fix
+SUBDATAPY=/global/cfs/cdirs/m1883/ilgar/codes/SubDataPy        # SubDataPy for GPU lstsq (optional -- fit.py falls back if missing)
+# ----------------------------------------------------------------------------
+
+export PATH="$CONDA_ENV/bin:$PATH"
+# Prepend so the local executorlib + autopiad + SubDataPy win over any conda copies.
+export PYTHONPATH="$EXECUTORLIB:$SUBDATAPY:$AUTOPIAD:${PYTHONPATH:-}"
+
+# fairchem-core pulls in wandb at import time, and wandb does many filesystem
+# stat()s during init -- on a contended CFS this can take 10+ minutes per
+# labeling worker (8x parallel). We don't log to wandb, so disable it entirely.
+export WANDB_MODE=disabled
 
 pwd; hostname -f; date
-#export MPICH_GPU_SUPPORT_ENABLED=1  # Turn on GTL; crucial if transferring data between GPUs on different nodes
+echo "PYTHONPATH=$PYTHONPATH"
+echo "NODES=$SLURM_NNODES"
 
-# --- Library paths for pip-installed CUDA libs ---
-# export PY_SITE_PKGS=$(python -c "import site; print(site.getsitepackages()[0])")
-# export NVIDIA_DIR="${PY_SITE_PKGS}/nvidia"
-# export LD_LIBRARY_PATH="${NVIDIA_DIR}/cuda_runtime/lib:${NVIDIA_DIR}/nvjitlink/lib:${NVIDIA_DIR}/cusparse/lib:${NVIDIA_DIR}/cublas/lib:${NVIDIA_DIR}/cufft/lib:${NVIDIA_DIR}/cudnn/lib:${NVIDIA_DIR}/curand/lib:${NVIDIA_DIR}/cusolver/lib:${NVIDIA_DIR}/nccl/lib:${LD_LIBRARY_PATH}"
-
-srun -N $SLURM_NNODES -n $SLURM_NNODES flux start python -u -m autopiad
+# Flux drives executorlib's nested entropy / labeling / featurize / fitting / pareto
+# executors. Run python -u so all worker prints flush in real time.
+srun -N "$SLURM_NNODES" -n "$SLURM_NNODES" flux start python -u -m autopiad
 
 date
