@@ -16,15 +16,16 @@ The **binary** method (used for 2-element systems like W-Re) assigns one LAMMPS 
 - Distance checking uses sum-of-radii thresholds (natural for per-atom pseudo-species).
 - Soft potential uses `A=10` for all pairs and `pair_style soft {r_core_max}` (variable global cutoff).
 
-## Files
+## Files (self-contained; copy to a $SCRATCH run dir and `sbatch run_perlmutter.sh`)
 
-- `inputfile` - Pipeline configuration. Key settings:
-  - `[STRUCTUREGEN] method = multi_element` with `elements = H Be W`
-  - `[FitSNAP] mlip = ACE` with `chem_elem = H Be W`
-  - 40 configurations, batched into groups of 20 for incremental fitting
-  - Hyperparameter grid: rcut 4-6 (3 values), nmax 6-10/2-4, lmax 0/1-2, eweight centered at 10 (3 values)
-- `FitSNAP.in` - FitSNAP ACE configuration for 3 elements (9 bond types)
-- `run_perlmutter.sh` - SLURM submission script for NERSC Perlmutter (identical to WRe example)
+- `inputfile` - Pipeline configuration matching the proven 100k 4rcut run (1h 42m wall on 4 GPU nodes, 0 errors):
+  - `nconfigurations = 100000`, `batch_size = 1000` (configs per combine_b)
+  - `label_batch_size = 20` (configs per UMA forward, amortizes the ~160 ms fixed forward overhead)
+  - `fit_gpus_per_node = 3` (1 UMA labeling GPU + 3 GPU fit workers per node)
+  - `fit_engine = incremental` (R-collecting QR/SVD, O(N) memory in number of batches)
+  - Hyperparameter grid: 4 rcuts (5.0-6.5), nmax 5-9 / 2-4, lmax 0 / 1-4, 5 eweights
+- `FitSNAP.in` - FitSNAP ACE configuration for 3 elements (9 bond types). `pair_style = zero 6.6` >= `max_rcut`.
+- `run_perlmutter.sh` - 4-node premium 4h `sbatch` script. Edit the `USER-SPECIFIC PATHS` block, then `sbatch run_perlmutter.sh` from a fresh `$SCRATCH` working dir.
 
 ## STRUCTUREGEN parameters (from original multi_element_entropy)
 
@@ -72,9 +73,16 @@ To create a new N-element example:
 
 ## Running
 
-From this directory on a Perlmutter interactive session or via batch:
+Per the main CLAUDE.md, always run from `$SCRATCH` (Lustre, ~1.7x faster than CFS for the many
+small per-config writes). The repo `run_perlmutter.sh` is a 4-node premium 4h `sbatch` script
+that handles everything once you edit its `USER-SPECIFIC PATHS` block:
+
 ```bash
-srun -N $SLURM_NNODES -n $SLURM_NNODES flux start python -u -m autopiad
+cd $SCRATCH/autopiad_experiments
+mkdir my_HBeW_run && cd my_HBeW_run
+cp <repo>/examples/HBeW/ACE/{inputfile,FitSNAP.in,run_perlmutter.sh} .
+# edit run_perlmutter.sh CONDA_ENV / AUTOPIAD / EXECUTORLIB / SUBDATAPY paths
+sbatch run_perlmutter.sh
 ```
 
 ## Output directories

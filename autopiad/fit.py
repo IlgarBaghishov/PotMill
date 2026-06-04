@@ -402,63 +402,41 @@ def foldfit(features_directory, feature_names, b_dependency, subset_hp, eweight_
     import torch
     from autopiad.tools import rcuts_to_string, hyperparameters_to_string
 
-    import time as _time
-    _t_total = _time.time()
-
     dtype = torch.float64
     rcut = subset_hp[0]
     rcuts_str = rcuts_to_string(rcut, delimiter='_')
     feature_indices = _feature_indices(mlip, feature_names, subset_hp)
     p = len(feature_indices)
-    print(f"foldfit START: batch {batch_ID} subset "
-          f"{hyperparameters_to_string(mlip, subset_hp, delimiter='_', w_eweight=False)} p={p}", flush=True)
 
     # ---- batch design matrix (this batch only), column-selected, on device ----
-    _t = _time.time()
     a_map = np.load(f"{features_directory}{batch_ID}/{rcuts_str}/a.npy", mmap_mode='r')
     a_sel = np.ascontiguousarray(a_map[:, feature_indices])
-    _t_load_a = _time.time() - _t
-
-    _t = _time.time()
     a_t = torch.as_tensor(a_sel, dtype=dtype, device=fit_device)
-    _t_build_a_t = _time.time() - _t
 
     # ---- batch targets (per-batch b file written by combine_b), aligned row-for-row with a ----
-    _t = _time.time()
     bb = pd.read_csv(f"{features_directory}{batch_ID}/b_batch.csv", header=None)
-    _t_load_b = _time.time() - _t
-
-    _t = _time.time()
     assert bb.shape[0] == a_sel.shape[0], (bb.shape[0], a_sel.shape[0], batch_ID)
     local_idx = bb[0].values; job_id = bb[1].values; bval = bb[2].values
     b_t = torch.as_tensor(bval, dtype=dtype, device=fit_device)
     e_mask = torch.as_tensor(local_idx == 0, device=fit_device)                 # energy = local idx 0
     part = torch.as_tensor([config_fold(j, n_fold) for j in job_id], device=fit_device)
-    _t_build_b_t = _time.time() - _t
 
     # ---- load running state (k folds) or start fresh ----
-    _t = _time.time()
     if prev_state_path and os.path.exists(prev_state_path):
         states = _load_states(prev_state_path, p, fit_device, dtype)
     else:
         states = [_FoldState(p, fit_device, dtype) for _ in range(n_fold)]
-    _t_load_state = _time.time() - _t
 
     # ---- fold this batch into every fold's state ----
-    _t = _time.time()
     for f in range(n_fold):
         states[f].fold_batch(a_t, b_t, e_mask, part, f)
-    _t_fold = _time.time() - _t
 
     # ---- persist updated state (the chain edge) ----
-    _t = _time.time()
     os.makedirs(state_dir, exist_ok=True)
     new_path = f"{state_dir}/state.pt"
     _save_states(states, new_path)
-    _t_save_state = _time.time() - _t
 
     # ---- solve + RMSE for every (eweight, fold), write results.csv + beta ----
-    _t = _time.time()
     for eweight in eweight_list:
         hp = (subset_hp + [eweight]) if mlip == "ACE" else (subset_hp + [eweight])
         fit_dir = fit_dir_base + hyperparameters_to_string(mlip, hp, delimiter='_')
@@ -466,16 +444,4 @@ def foldfit(features_directory, feature_names, b_dependency, subset_hp, eweight_
         for f in range(n_fold):
             res = states[f].solve_and_rmse(eweight, rcond)
             _write_results(fit_dir, mlip, hp, f, res)
-    _t_solve_write = _time.time() - _t
-
-    _t_total = _time.time() - _t_total
-    print(f"foldfit TIMING batch={batch_ID} p={p}: "
-          f"load_a={_t_load_a:.3f}s build_a_t={_t_build_a_t:.3f}s "
-          f"load_b={_t_load_b:.3f}s build_b_t={_t_build_b_t:.3f}s "
-          f"load_state={_t_load_state:.3f}s fold={_t_fold:.3f}s "
-          f"save_state={_t_save_state:.3f}s solve_write={_t_solve_write:.3f}s "
-          f"total={_t_total:.3f}s", flush=True)
-
-    print(f"foldfit: batch {batch_ID} subset {hyperparameters_to_string(mlip, subset_hp, delimiter='_', w_eweight=False)} "
-          f"p={p} done ({n_fold} folds x {len(eweight_list)} eweights)", flush=True)
     return new_path

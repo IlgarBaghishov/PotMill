@@ -33,6 +33,14 @@ def featurize(atoms_traj, config, fitsnap_config, rcuts, feature_directory,
     if isinstance(atoms_traj, dict):
         atoms_traj = atoms_traj["atoms"]
     elif isinstance(atoms_traj, list):
+        # If labeling was batched (label_batch_size>1), each labeling task returns a list
+        # of N dicts (from uma_batch), so exe.batched yields a list-of-lists. Flatten to
+        # the list-of-dicts shape this function expects -- otherwise len(atoms_traj) counts
+        # outer lists (=combine_b_n) instead of configs (=batch_size), and cost_nstructures
+        # slices outer lists instead of capping atoms (which causes cost tasks to process
+        # 20x more atoms than intended and stall the dynamic-exe queue).
+        if atoms_traj and isinstance(atoms_traj[0], list):
+            atoms_traj = [item for sublist in atoms_traj for item in sublist]
         if isinstance(atoms_traj[0], dict):
             atoms_traj = [atoms["atoms"] for atoms in atoms_traj]
 
@@ -49,10 +57,7 @@ def featurize(atoms_traj, config, fitsnap_config, rcuts, feature_directory,
     a1 = rank*ratio + min(rank,rem)
     a2 = (rank+1)*ratio + min(rank,rem-1) + 1
 
-    import time as _time
-    _t0 = _time.time()
-    print(f"featurize START: dir={os.getcwd()} nconfigs={configs_num} only_cost={only_cost} "
-          f"rcuts={rcuts_to_string(rcuts)}", flush=True)
+    print("rcuts = " + rcuts_to_string(rcuts), flush=True)
     if config['FitSNAP']['mlip'] == "ACE":
         if len(rcuts) == 1:
             fitsnap_config["ACE"]["rcutfac"] = rcuts_to_string(rcuts*(int(fitsnap_config["ACE"]["numTypes"])**2))
@@ -76,8 +81,6 @@ def featurize(atoms_traj, config, fitsnap_config, rcuts, feature_directory,
                 print(f"WARNING: featurize {os.getcwd()} a.npy has {n_bad} non-finite "
                       f"descriptor values (degenerate config?)", flush=True)
             np.save("a.npy", a_arr)
-            print(f"featurize DONE: dir={os.getcwd()} shape={a_arr.shape} "
-                  f"n_nonfinite={n_bad} took={_time.time()-_t0:.1f}s", flush=True)
 
             bnames = []
             if config['FitSNAP']['mlip'] == "ACE":

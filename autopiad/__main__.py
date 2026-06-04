@@ -46,9 +46,9 @@ def check_and_print_status(futures, name, total, list_of_lists=False, count_mult
 
 
 def combine_b(start_path, labeling_results, labeling_IDs_ready_for_fit, batch_idx):
-    # If labeling was batched (label_batch_size>1), each labeling_results item is a LIST
-    # of dicts (one uma_batch call → N configs). Flatten so the existing per-config
-    # iteration below is unchanged.
+    # If labeling was batched (label_batch_size>1), each labeling task returns a list
+    # of N dicts (from uma_batch), so exe.batched yields a list-of-lists. Flatten back
+    # to list-of-dicts so the existing per-config iteration below is unchanged.
     if labeling_results and isinstance(labeling_results[0], list):
         labeling_results = [item for sublist in labeling_results for item in sublist]
     labeling_IDs_finished = [labeling_result["job_ID"] for labeling_result in labeling_results]
@@ -103,27 +103,18 @@ def make_init_atoms_from_entropy(structuregen_config):
     return init_atoms_from_entropy
 
 
-_NEXT_ATOMS_FIRST_CALL_DONE = False
-
-
 def next_atoms_from_entropy(entropy_iterator, job_id=None):
     """Yield the next entropy-generated config. When job_id is given (label_batch_size>1 path)
-    returns a tagged dict so uma_batch can recover the submission index after exe.batched groups
-    results by completion (which loses original ordering)."""
-    global _NEXT_ATOMS_FIRST_CALL_DONE
+    returns a tagged dict so uma_batch can recover the submission index from the resolved
+    batch_futs list (since the entropy_atoms_futures elements no longer carry job_id once
+    update_futures_in_input replaces them with their results)."""
     result = next(entropy_iterator)
-    if not _NEXT_ATOMS_FIRST_CALL_DONE:
-        _NEXT_ATOMS_FIRST_CALL_DONE = True
-        import time as _time, os as _os
-        print(f"HANDOFF_TIMING: first entropy yield pid={_os.getpid()} wall_clock={_time.time():.3f}", flush=True)
     if job_id is not None:
         return {"atoms": result, "job_id": job_id}
     return result
 
 
 def main():
-    import time as _time
-    print(f"HANDOFF_TIMING: main() start wall_clock={_time.time():.3f}", flush=True)
     handle = flux.Flux()
     rs = flux.resource.status.ResourceStatusRPC(handle).get()
     rl = flux.resource.list.resource_list(handle).get()
