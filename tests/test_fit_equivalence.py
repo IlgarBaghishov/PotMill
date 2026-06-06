@@ -37,8 +37,9 @@ class TestFitFoldfitEquivalence(unittest.TestCase):
             n_atoms = int(rng.integers(2, 4))
             n_rows = 1 + 3 * n_atoms
             a_blocks.append(rng.standard_normal((n_rows, p)))
-            configs.append((c, float(rng.standard_normal()) * 5.0,
-                            rng.standard_normal((n_atoms, 3))))
+            configs.append(
+                (c, float(rng.standard_normal()) * 5.0, rng.standard_normal((n_atoms, 3)))
+            )
         a = np.vstack(a_blocks)
 
         # all folds must be populated for the per-fold RMSE means
@@ -56,17 +57,38 @@ class TestFitFoldfitEquivalence(unittest.TestCase):
             os.makedirs(fit_dir, exist_ok=True)
             cwd = os.getcwd()
             try:
-                fit(feats, feature_names, list(range(n_configs)),
-                    subset_hp + [eweight], mlip, batch_ID=0, n_fold=n_fold,
-                    fit_directory=fit_dir, fit_device="cpu", fit_method="svd")
+                fit(
+                    feats,
+                    feature_names,
+                    list(range(n_configs)),
+                    subset_hp + [eweight],
+                    mlip,
+                    batch_ID=0,
+                    n_fold=n_fold,
+                    fit_directory=fit_dir,
+                    fit_device="cpu",
+                    fit_method="svd",
+                )
             finally:
                 os.chdir(cwd)
 
             fold_base = os.path.join(root, "incr") + "/"
             state_dir = os.path.join(root, "state")
-            foldfit(feats, feature_names, None, subset_hp, [eweight], mlip,
-                    0, None, n_fold=n_fold, fit_dir_base=fold_base,
-                    state_dir=state_dir, fit_device="cpu", fit_method="svd")
+            foldfit(
+                feats,
+                feature_names,
+                None,
+                subset_hp,
+                [eweight],
+                mlip,
+                0,
+                None,
+                n_fold=n_fold,
+                fit_dir_base=fold_base,
+                state_dir=state_dir,
+                fit_device="cpu",
+                fit_method="svd",
+            )
 
             rows_csv = np.loadtxt(os.path.join(fit_dir, "results.csv"), delimiter=",")
             incr_csv = np.loadtxt(glob.glob(f"{fold_base}*/results.csv")[0], delimiter=",")

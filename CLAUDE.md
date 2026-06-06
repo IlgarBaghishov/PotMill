@@ -74,7 +74,7 @@ Tests live in `tests/` (stdlib `unittest`); run them with `python -m unittest di
 
 The structure generation uses SNAP bispectrum descriptors as the feature space. The goal is to generate atomic configurations that maximize the information entropy (minimize the negative log-determinant of the normalized covariance matrix).
 
-Two methods are supported, controlled by `[STRUCTUREGEN] method` in `config.ini`:
+Two methods are supported, controlled by `[ourStructureGen] method` in `config.ini`:
 
 - **binary**: Fixed element pair (e.g., W-Re). Uses nearest-neighbor distances for radii, chemically-aware SNAP descriptors (`chemflag=1`). Each element pair has distinct descriptor components.
 - **multi_element**: Arbitrary elements sampled from the periodic table using Mendeleev-based radius distributions. Uses pseudo-species mapping where each atom is a unique LAMMPS type with its own cutoff radius. Standard SNAP descriptors without `chemflag`.
@@ -116,11 +116,13 @@ The pipeline is configured via a `config.ini` in the working directory, parsed b
 `potmill.config.ConfigManager`. "Our" sections have documented defaults in
 `ConfigManager.DEFAULTS` and warn on unknown keys; passthrough sections forward kwargs verbatim
 to external calculators. Key sections:
-- `[MAIN]`: Pipeline stage toggles, resource allocation, fit/label device & batching
+- `[Main]`: pipeline stage toggles (`entropy`/`labeling`/`featurize`/`fit`/`pareto`/`pops`), `nconfigurations`, `batch_size`
 - `[FitSNAP]`: MLIP type (ACE/SNAP), element specification, FitSNAP.in filename
-- `[STRUCTUREGEN]`: Structure generation method and parameters (defaults resolved in `structuregen`)
-- `[RCUT]`, `[NMAX]`, `[LMAX]`, `[TWOJMAX]`, `[EWEIGHT]`: Hyperparameter grids
-- `[ourLabeling]`: `calculator` = `FAIRChemCalculator` | `Vasp` | `LAMMPS`
+- `[ourStructureGen]`: structure generation method and parameters (defaults resolved in `structuregen`)
+- `[ourLabeling]`: `calculator` = `FAIRChemCalculator` | `Vasp` | `LAMMPS`, plus `label_batch_size`
+- `[ourFeaturization]`: `featurize_workers_per_node`, `ncores_per_featurization`
+- `[ourFit]`: `fit_gpus_per_node`, `fit_device`, `fit_method`, `n_fold`, `fit_engine`, `ncores_per_fit`
+- `[ourHyperparameters]`: the swept grid (`min/max_rcut`, `num_rcut`, `min/max_nmax`, `min/max_lmax`, `min/max_twojmax`, `middle_eweight`, `num_eweights`)
 - `[FAIRChemCalculator]`, `[Vasp]`, `[LAMMPS]`: passthrough kwargs for the chosen labeling backend
 
 ## Configuration constraints

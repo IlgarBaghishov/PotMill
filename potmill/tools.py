@@ -93,14 +93,11 @@ def create_eweight_range(middle_eweight, n_eweights):
 
 
 def combined_ace_hyperparameters(config, w_eweight=True):
-    rcut_range = create_rcut_range(
-        config["RCUT"]["min_rcut"], config["RCUT"]["max_rcut"], config["RCUT"]["num_rcut"]
-    )
-    nmax_range = create_nmax_range(config["NMAX"]["min_nmax"], config["NMAX"]["max_nmax"])
-    lmax_range = create_lmax_range(config["LMAX"]["min_lmax"], config["LMAX"]["max_lmax"])
-    eweight_range = create_eweight_range(
-        config["EWEIGHT"]["middle_eweight"], config["EWEIGHT"]["num_eweights"]
-    )
+    hp = config["ourHyperparameters"]
+    rcut_range = create_rcut_range(hp["min_rcut"], hp["max_rcut"], hp["num_rcut"])
+    nmax_range = create_nmax_range(hp["min_nmax"], hp["max_nmax"])
+    lmax_range = create_lmax_range(hp["min_lmax"], hp["max_lmax"])
+    eweight_range = create_eweight_range(hp["middle_eweight"], hp["num_eweights"])
     if w_eweight:
         hyperparameters_list = [
             [rcut_list, nmax_list, lmax_list, eweight]
@@ -120,15 +117,10 @@ def combined_ace_hyperparameters(config, w_eweight=True):
 
 
 def combined_snap_hyperparameters(config, w_eweight=True):
-    rcut_range = create_rcut_range(
-        config["RCUT"]["min_rcut"], config["RCUT"]["max_rcut"], config["RCUT"]["num_rcut"]
-    )
-    twojmax_range = create_twojmax_range(
-        config["TWOJMAX"]["min_twojmax"], config["TWOJMAX"]["max_twojmax"]
-    )
-    eweight_range = create_eweight_range(
-        config["EWEIGHT"]["middle_eweight"], config["EWEIGHT"]["num_eweights"]
-    )
+    hp = config["ourHyperparameters"]
+    rcut_range = create_rcut_range(hp["min_rcut"], hp["max_rcut"], hp["num_rcut"])
+    twojmax_range = create_twojmax_range(hp["min_twojmax"], hp["max_twojmax"])
+    eweight_range = create_eweight_range(hp["middle_eweight"], hp["num_eweights"])
     if w_eweight:
         hyperparameters_list = [
             [rcut_list, twojmax_list, eweight]

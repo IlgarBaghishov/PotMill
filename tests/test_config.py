@@ -17,13 +17,15 @@ def _write(d, text):
 class TestConfigManager(unittest.TestCase):
     def test_defaults_and_coercion(self):
         with tempfile.TemporaryDirectory() as d:
-            path = _write(d, "[MAIN]\nnconfigurations = 500\n[FitSNAP]\nchem_elem = H Be W\nmlip = ACE\n")
+            path = _write(
+                d, "[Main]\nnconfigurations = 500\n[FitSNAP]\nchem_elem = H Be W\nmlip = ACE\n"
+            )
             cfg = ConfigManager(path)
         # user override coerced to int
-        self.assertEqual(cfg["MAIN"]["nconfigurations"], 500)
+        self.assertEqual(cfg["Main"]["nconfigurations"], 500)
         # default applied for an omitted key
-        self.assertEqual(cfg["MAIN"]["fit_gpus_per_node"], 2)
-        self.assertEqual(cfg["MAIN"]["fit_device"], "cuda")
+        self.assertEqual(cfg["ourFit"]["fit_gpus_per_node"], 2)
+        self.assertEqual(cfg["ourFit"]["fit_device"], "cuda")
         # space-separated -> list
         self.assertEqual(cfg["FitSNAP"]["chem_elem"], ["H", "Be", "W"])
 
@@ -35,7 +37,7 @@ class TestConfigManager(unittest.TestCase):
 
     def test_unknown_key_warns(self):
         with tempfile.TemporaryDirectory() as d:
-            path = _write(d, "[MAIN]\nnot_a_real_key = 3\n")
+            path = _write(d, "[Main]\nnot_a_real_key = 3\n")
             buf = io.StringIO()
             with redirect_stdout(buf):
                 ConfigManager(path)
@@ -43,7 +45,7 @@ class TestConfigManager(unittest.TestCase):
 
     def test_validate_warns_on_low_pair_style(self):
         with tempfile.TemporaryDirectory() as d:
-            path = _write(d, "[RCUT]\nmax_rcut = 6.5\n")
+            path = _write(d, "[ourHyperparameters]\nmax_rcut = 6.5\n")
             cfg = ConfigManager(path)
         buf = io.StringIO()
         with redirect_stdout(buf):
@@ -60,7 +62,7 @@ class TestConfigManager(unittest.TestCase):
         with redirect_stdout(buf):
             cfg = ConfigManager("/nonexistent/config.ini")
         self.assertIn("not found", buf.getvalue())
-        self.assertEqual(cfg["MAIN"]["n_fold"], 3)
+        self.assertEqual(cfg["ourFit"]["n_fold"], 3)
 
 
 if __name__ == "__main__":

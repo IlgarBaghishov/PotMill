@@ -59,9 +59,10 @@ python -m potmill.analysis.plot_monitor pipeline_monitor.csv
 
 The pipeline reads `config.ini` (parsed by `potmill.config.ConfigManager`). Sections are of two kinds:
 
-- **"our" sections** — PotMill's own parameters with documented defaults in `ConfigManager.DEFAULTS`
-  (e.g. `[MAIN]`, `[RCUT]`, `[NMAX]`, `[EWEIGHT]`, `[STRUCTUREGEN]`, `[FitSNAP]`, `[ourLabeling]`).
-  Unknown keys are warned about.
+- **"our" sections** — PotMill's own parameters with documented defaults in `ConfigManager.DEFAULTS`:
+  `[Main]` (stage toggles + global counts), `[FitSNAP]` (MLIP + elements), and the per-stage
+  `[ourStructureGen]`, `[ourLabeling]`, `[ourFeaturization]`, `[ourFit]`, plus `[ourHyperparameters]`
+  (the swept rcut/nmax/lmax/twojmax/eweight grid). Unknown keys are warned about.
 - **passthrough sections** — keyword arguments forwarded verbatim to external calculator classes
   (`[FAIRChemCalculator]`, `[Vasp]`, `[LAMMPS]`); omitted keys fall back to that library's defaults.
 

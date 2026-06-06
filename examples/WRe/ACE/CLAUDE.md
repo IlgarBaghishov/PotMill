@@ -8,8 +8,8 @@ This example runs the full PotMill pipeline for a tungsten-rhenium (W-Re) binary
 
 ## Files
 
-- `inputfile` - Pipeline configuration. Key settings:
-  - `[STRUCTUREGEN] method = binary` with `elements = W Re`
+- `config.ini` - Pipeline configuration. Key settings:
+  - `[ourStructureGen] method = binary` with `elements = W Re`
   - `[FitSNAP] mlip = ACE` with `chem_elem = W Re`
   - 40 configurations, batched into groups of 20 for incremental fitting
   - Hyperparameter grid: rcut 5-6 (3 values), nmax 8-10/3-4, lmax 0/1-2, eweight centered at 10 (3 values)

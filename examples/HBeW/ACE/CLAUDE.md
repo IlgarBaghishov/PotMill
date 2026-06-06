@@ -18,7 +18,7 @@ The **binary** method (used for 2-element systems like W-Re) assigns one LAMMPS 
 
 ## Files (self-contained; copy to a $SCRATCH run dir and `sbatch run_perlmutter.sh`)
 
-- `inputfile` - Pipeline configuration matching the proven 100k 4rcut run (1h 42m wall on 4 GPU nodes, 0 errors):
+- `config.ini` - Pipeline configuration matching the proven 100k 4rcut run (1h 42m wall on 4 GPU nodes, 0 errors):
   - `nconfigurations = 100000`, `batch_size = 1000` (configs per combine_b)
   - `label_batch_size = 20` (configs per UMA forward, amortizes the ~160 ms fixed forward overhead)
   - `fit_gpus_per_node = 3` (1 UMA labeling GPU + 3 GPU fit workers per node)
@@ -27,9 +27,9 @@ The **binary** method (used for 2-element systems like W-Re) assigns one LAMMPS 
 - `FitSNAP.in` - FitSNAP ACE configuration for 3 elements (9 bond types). `pair_style = zero 6.6` >= `max_rcut`.
 - `run_perlmutter.sh` - 4-node premium 4h `sbatch` script. Edit the `USER-SPECIFIC PATHS` block, then `sbatch run_perlmutter.sh` from a fresh `$SCRATCH` working dir.
 
-## STRUCTUREGEN parameters (from original multi_element_entropy)
+## Structure-generation parameters (from original multi_element_entropy)
 
-All values in the `[STRUCTUREGEN]` section match the original `multi_element_entropy/d-opti-chem.py`:
+All values in the `[ourStructureGen]` section match the original `multi_element_entropy/d-opti-chem.py`:
 
 | Parameter | Value | Meaning |
 |---|---|---|
@@ -62,14 +62,14 @@ Parameters that are per-rank (`ranks`, `lmax`, `nmax`, `lmin`, `nmaxbase`) do NO
 
 To create a new N-element example:
 
-1. **`inputfile`**: Set `elements = A B C ...` in both `[STRUCTUREGEN]` and `chem_elem = A B C ...` in `[FitSNAP]`
+1. **`config.ini`**: Set `elements = A B C ...` in both `[ourStructureGen]` and `chem_elem = A B C ...` in `[FitSNAP]`
 2. **`FitSNAP.in`**:
    - `numTypes = N`
    - `mumax = N`
    - `type = A B C ...`
    - `rcutfac`, `lambda`, `rcinner`, `drcinner`: provide N^2 values each
    - `[ESHIFT]`: one entry per element (`A = 0.0`, `B = 0.0`, ...)
-3. **`inputfile` `[STRUCTUREGEN]`**: No changes needed to other parameters; the defaults from the original multi_element code work for any element count
+3. **`config.ini` `[ourStructureGen]`**: No changes needed to other parameters; the defaults from the original multi_element code work for any element count
 
 ## Running
 
@@ -80,7 +80,7 @@ that handles everything once you edit its `USER-SPECIFIC PATHS` block:
 ```bash
 cd $SCRATCH/PotMill_experiments
 mkdir my_HBeW_run && cd my_HBeW_run
-cp <repo>/examples/HBeW/ACE/{inputfile,FitSNAP.in,run_perlmutter.sh} .
+cp <repo>/examples/HBeW/ACE/{config.ini,FitSNAP.in,run_perlmutter.sh} .
 # edit run_perlmutter.sh CONDA_ENV / POTMILL / EXECUTORLIB / SUBDATAPY paths
 sbatch run_perlmutter.sh
 ```

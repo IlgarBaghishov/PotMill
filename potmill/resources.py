@@ -34,12 +34,12 @@ def worker_layout(config, nnodes, ncores, ngpus):
     fit_gpus_per_node GPUs/node for fitting and the rest for labeling) plus entropy and featurize
     workers. n_entropy_workers and featurize_workers_per_node are per-node knobs scaled by nnodes."""
     gpus_per_node = ngpus // nnodes if nnodes else 0
-    fit_gpus_per_node = config["MAIN"]["fit_gpus_per_node"]
+    fit_gpus_per_node = config["ourFit"]["fit_gpus_per_node"]
     assert 0 < fit_gpus_per_node < gpus_per_node, (
         f"fit_gpus_per_node ({fit_gpus_per_node}) must be >0 and leave GPUs for labeling "
         f"(gpus_per_node={gpus_per_node})"
     )
-    n_entropy_workers = config["STRUCTUREGEN"].get("n_entropy_workers", 1) * nnodes
+    n_entropy_workers = config["ourStructureGen"].get("n_entropy_workers", 1) * nnodes
     return Resources(
         nnodes=nnodes,
         ncores=ncores,
@@ -49,5 +49,5 @@ def worker_layout(config, nnodes, ncores, ngpus):
         n_fit_workers=fit_gpus_per_node * nnodes,
         n_entropy_workers=n_entropy_workers,
         threads_per_worker=max(1, 32 // n_entropy_workers),
-        n_featurize_workers=config["MAIN"]["featurize_workers_per_node"] * nnodes,
+        n_featurize_workers=config["ourFeaturization"]["featurize_workers_per_node"] * nnodes,
     )

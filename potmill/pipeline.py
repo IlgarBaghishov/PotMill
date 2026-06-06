@@ -26,10 +26,10 @@ RUN_DIRS = {
 
 def prepare_run_dirs(config, start_path):
     """Wipe and recreate the output directory of every enabled stage (skipped when resuming)."""
-    if config["MAIN"]["resume"]:
+    if config["Main"]["resume"]:
         return
-    dirs = [d for mode, d in RUN_DIRS.items() if config["MAIN"][mode]]
-    if config["MAIN"]["pareto"]:
+    dirs = [d for mode, d in RUN_DIRS.items() if config["Main"][mode]]
+    if config["Main"]["pareto"]:
         dirs += ["costs", "pareto-front"]
     for d in dirs:
         shutil.rmtree(start_path + d, ignore_errors=True)

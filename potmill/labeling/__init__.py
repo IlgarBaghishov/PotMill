@@ -27,7 +27,7 @@ def _fairchem_kwargs(config):
 def make_labeling(config):
     """Return the Labeling(init_function, per_config, batched) for the configured backend."""
     name = config.get_value("ourLabeling", "calculator", "FAIRChemCalculator")
-    batched = config["MAIN"]["label_batch_size"] > 1
+    batched = config["ourLabeling"]["label_batch_size"] > 1
     if name == "FAIRChemCalculator":
         kwargs = _fairchem_kwargs(config)
         init = make_init_uma_predictor(kwargs) if batched else make_init_uma_calculator(kwargs)

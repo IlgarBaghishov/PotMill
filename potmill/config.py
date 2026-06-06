@@ -2,12 +2,12 @@
 
 The pipeline is configured by a ``config.ini`` whose sections are of two kinds:
 
-* "our" sections (``MAIN``, ``RCUT``, ``NMAX``, ..., ``FitSNAP``) carry PotMill's own
-  parameters. Their defaults live in ``ConfigManager.DEFAULTS`` (the single source of truth),
+* "our" sections (``Main``, ``FitSNAP``, and the per-stage ``our*`` sections) carry PotMill's
+  own parameters. Their defaults live in ``ConfigManager.DEFAULTS`` (the single source of truth),
   values are type-coerced, and unknown keys are warned about to catch typos.
 * passthrough sections (``FAIRChemCalculator``, ``Vasp``, ``LAMMPS``) carry keyword arguments
   for external calculator classes. Their keys are forwarded verbatim and are NOT validated --
-  anything the user omits falls back to that library's own default. ``STRUCTUREGEN`` is also
+  anything the user omits falls back to that library's own default. ``ourStructureGen`` is also
   left raw because its defaults are method-dependent and resolved inside ``structuregen``.
 """
 
@@ -19,14 +19,14 @@ import re
 from potmill.tools import configparse, interpret_string
 
 PASSTHROUGH_SECTIONS = ("FAIRChemCalculator", "Vasp", "LAMMPS")
-RAW_SECTIONS = ("STRUCTUREGEN", *PASSTHROUGH_SECTIONS)
+RAW_SECTIONS = ("ourStructureGen", *PASSTHROUGH_SECTIONS)
 
 
 class ConfigManager:
     """Parse ``config.ini``, apply defaults to the "our" sections, and validate."""
 
     DEFAULTS = {
-        "MAIN": {
+        "Main": {
             "resume": 0,
             "entropy": 1,
             "featurize": 1,
@@ -36,23 +36,31 @@ class ConfigManager:
             "pops": 0,
             "nconfigurations": 1000,
             "batch_size": 1000,
-            "label_batch_size": 1,
-            "ncores_per_fit": 1,
-            "featurize_workers_per_node": 1,
+        },
+        "FitSNAP": {"mlip": "ACE", "chem_elem": None, "filename": "FitSNAP.in"},
+        "ourLabeling": {"calculator": "FAIRChemCalculator", "label_batch_size": 1},
+        "ourFeaturization": {"featurize_workers_per_node": 1, "ncores_per_featurization": 4},
+        "ourFit": {
             "fit_gpus_per_node": 2,
             "fit_device": "cuda",
             "fit_method": "svd",
             "n_fold": 3,
             "fit_engine": "incremental",
-            "auto_reduce_hyperparameters": 0,
+            "ncores_per_fit": 1,
         },
-        "FitSNAP": {"mlip": "ACE", "chem_elem": None, "filename": "FitSNAP.in"},
-        "ourLabeling": {"calculator": "FAIRChemCalculator"},
-        "RCUT": {"min_rcut": 5.0, "max_rcut": 6.5, "num_rcut": 4},
-        "NMAX": {"min_nmax": 5, "max_nmax": 9},
-        "LMAX": {"min_lmax": 0, "max_lmax": 4},
-        "TWOJMAX": {"min_twojmax": 6, "max_twojmax": 8},
-        "EWEIGHT": {"middle_eweight": 10, "num_eweights": 5, "constant": 1},
+        "ourHyperparameters": {
+            "min_rcut": 5.0,
+            "max_rcut": 6.5,
+            "num_rcut": 4,
+            "min_nmax": 5,
+            "max_nmax": 9,
+            "min_lmax": 0,
+            "max_lmax": 4,
+            "min_twojmax": 6,
+            "max_twojmax": 8,
+            "middle_eweight": 10,
+            "num_eweights": 5,
+        },
     }
 
     def __init__(self, config_file="config.ini"):
@@ -100,19 +108,19 @@ class ConfigManager:
 
     def validate(self, fitsnap_config):
         """Warn (do NOT override -- users may have custom pair_style setups) when the FitSNAP.in
-        [REFERENCE] pair_style cutoff is below [RCUT] max_rcut. LAMMPS compute pace aborts every
-        featurize task with rcut > pair_style cutoff (src/ML-PACE/compute_pace.cpp:129)."""
+        [REFERENCE] pair_style cutoff is below [ourHyperparameters] max_rcut. LAMMPS compute pace
+        aborts every featurize task with rcut > pair_style cutoff (src/ML-PACE/compute_pace.cpp:129)."""
         match = re.match(
             r"\s*zero\s+([0-9.]+)", fitsnap_config.get("REFERENCE", {}).get("pair_style", "")
         )
         if not match:
             return
-        max_rcut = self._config["RCUT"]["max_rcut"]
+        max_rcut = self._config["ourHyperparameters"]["max_rcut"]
         max_rcut = max(max_rcut) if isinstance(max_rcut, list) else float(max_rcut)
         ps_cut = float(match.group(1))
         if ps_cut < max_rcut:
             print(
-                f"WARNING: FitSNAP.in [REFERENCE] pair_style cutoff ({ps_cut}) < [RCUT] max_rcut "
+                f"WARNING: FitSNAP.in [REFERENCE] pair_style cutoff ({ps_cut}) < [ourHyperparameters] max_rcut "
                 f"({max_rcut}). LAMMPS will abort featurize tasks with 'compute pace cutoff > "
                 f"pairwise cutoff'. FIX FitSNAP.in:  pair_style = zero {max_rcut + 0.1}",
                 flush=True,

@@ -48,23 +48,23 @@ def main():
     fitsnap_config = load_fitsnap_config(start_path + config["FitSNAP"]["filename"])
 
     mlip = config["FitSNAP"]["mlip"]
-    resume_mode = config["MAIN"]["resume"]
-    entropy_mode = config["MAIN"]["entropy"]
-    feature_mode = config["MAIN"]["featurize"]
-    labeling_mode = config["MAIN"]["labeling"]
-    fit_mode = config["MAIN"]["fit"]
-    pareto_mode = config["MAIN"]["pareto"]
-    pops_mode = config["MAIN"]["pops"]
-    nconfigurations = config["MAIN"]["nconfigurations"]
-    batch_size = config["MAIN"]["batch_size"]
-    ncores_per_fit = config["MAIN"]["ncores_per_fit"]
-    fit_device = config["MAIN"]["fit_device"]
-    fit_method = config["MAIN"]["fit_method"]
-    n_fold = config["MAIN"]["n_fold"]  # k for k-fold CV (test = 1/n_fold)
-    fit_engine = config["MAIN"]["fit_engine"]  # 'incremental' (R-collecting) | 'rows'
+    resume_mode = config["Main"]["resume"]
+    entropy_mode = config["Main"]["entropy"]
+    feature_mode = config["Main"]["featurize"]
+    labeling_mode = config["Main"]["labeling"]
+    fit_mode = config["Main"]["fit"]
+    pareto_mode = config["Main"]["pareto"]
+    pops_mode = config["Main"]["pops"]
+    nconfigurations = config["Main"]["nconfigurations"]
+    batch_size = config["Main"]["batch_size"]
+    ncores_per_fit = config["ourFit"]["ncores_per_fit"]
+    fit_device = config["ourFit"]["fit_device"]
+    fit_method = config["ourFit"]["fit_method"]
+    n_fold = config["ourFit"]["n_fold"]  # k for k-fold CV (test = 1/n_fold)
+    fit_engine = config["ourFit"]["fit_engine"]  # 'incremental' (R-collecting) | 'rows'
     # label_batch_size: configs per GPU forward pass. 1 = per-config label() with an ASE calculator;
     # >1 = batched predictor path (UMA), amortizing the fixed forward overhead. Must divide batch_size.
-    label_batch_size = config["MAIN"]["label_batch_size"]
+    label_batch_size = config["ourLabeling"]["label_batch_size"]
     assert label_batch_size >= 1, f"label_batch_size must be >=1, got {label_batch_size}"
     if label_batch_size > 1:
         assert batch_size % label_batch_size == 0, (
@@ -85,7 +85,7 @@ def main():
         flush=True,
     )
 
-    structuregen_config = config.get("STRUCTUREGEN", {})
+    structuregen_config = config.get("ourStructureGen", {})
     structuregen_config.setdefault("elements", config["FitSNAP"]["chem_elem"])
     structuregen_config["n_threads"] = res.threads_per_worker
     if res.n_entropy_workers > 1 and structuregen_config.get("strict_entropy_decrease", 0):
@@ -94,20 +94,17 @@ def main():
         )
         structuregen_config["strict_entropy_decrease"] = 0
 
-    rcuts_list = create_rcut_range(
-        config["RCUT"]["min_rcut"], config["RCUT"]["max_rcut"], config["RCUT"]["num_rcut"]
-    )
+    hp = config["ourHyperparameters"]
+    rcuts_list = create_rcut_range(hp["min_rcut"], hp["max_rcut"], hp["num_rcut"])
     if mlip == "ACE":
         hyperparameters_list = combined_ace_hyperparameters(config)
         hyperparameters_list_noeweight = combined_ace_hyperparameters(config, w_eweight=False)
-        fitsnap_config["ACE"]["nmax"] = nmaxes_to_string(config["NMAX"]["max_nmax"])
-        fitsnap_config["ACE"]["lmax"] = lmaxes_to_string(config["LMAX"]["max_lmax"])
+        fitsnap_config["ACE"]["nmax"] = nmaxes_to_string(hp["max_nmax"])
+        fitsnap_config["ACE"]["lmax"] = lmaxes_to_string(hp["max_lmax"])
     elif mlip == "SNAP":
         hyperparameters_list = combined_snap_hyperparameters(config)
         hyperparameters_list_noeweight = combined_snap_hyperparameters(config, w_eweight=False)
-        fitsnap_config["BISPECTRUM"]["twojmax"] = twojmaxes_to_string(
-            config["TWOJMAX"]["max_twojmax"]
-        )
+        fitsnap_config["BISPECTRUM"]["twojmax"] = twojmaxes_to_string(hp["max_twojmax"])
 
     config.validate(fitsnap_config)
     prepare_run_dirs(config, start_path)
@@ -131,7 +128,7 @@ def main():
     pareto_futures = []
     pops_futures = []
 
-    ncores_per_featurization = 4
+    ncores_per_featurization = config["ourFeaturization"]["ncores_per_featurization"]
     print(
         f"Featurize: {res.n_featurize_workers} workers ({res.n_featurize_workers // nnodes}/node) "
         f"x {ncores_per_featurization} cores",
@@ -318,8 +315,8 @@ def main():
                                 "FITTING jobs submission (incremental R-collecting)...", flush=True
                             )
                             eweight_range = create_eweight_range(
-                                config["EWEIGHT"]["middle_eweight"],
-                                config["EWEIGHT"]["num_eweights"],
+                                hp["middle_eweight"],
+                                hp["num_eweights"],
                             )
                             n_subsets = len(hyperparameters_list_noeweight)
                             prev_state = [None] * n_subsets

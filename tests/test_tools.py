@@ -1,10 +1,19 @@
 import unittest
 
 from potmill.tools import (
-    seq_to_string, rcuts_to_string, nmaxes_to_string, twojmaxes_to_string,
-    create_rcut_range, create_nmax_range, create_lmax_range, create_twojmax_range,
-    create_eweight_range, combined_ace_hyperparameters, combined_snap_hyperparameters,
-    interpret_string, hyperparameters_to_string,
+    seq_to_string,
+    rcuts_to_string,
+    nmaxes_to_string,
+    twojmaxes_to_string,
+    create_rcut_range,
+    create_nmax_range,
+    create_lmax_range,
+    create_twojmax_range,
+    create_eweight_range,
+    combined_ace_hyperparameters,
+    combined_snap_hyperparameters,
+    interpret_string,
+    hyperparameters_to_string,
 )
 
 
@@ -58,10 +67,17 @@ class TestRanges(unittest.TestCase):
 class TestCombinedHyperparameters(unittest.TestCase):
     def _ace_config(self):
         return {
-            "RCUT": {"min_rcut": 5.0, "max_rcut": 6.0, "num_rcut": 2},
-            "NMAX": {"min_nmax": 5, "max_nmax": 6},
-            "LMAX": {"min_lmax": 0, "max_lmax": 1},
-            "EWEIGHT": {"middle_eweight": 10, "num_eweights": 3},
+            "ourHyperparameters": {
+                "min_rcut": 5.0,
+                "max_rcut": 6.0,
+                "num_rcut": 2,
+                "min_nmax": 5,
+                "max_nmax": 6,
+                "min_lmax": 0,
+                "max_lmax": 1,
+                "middle_eweight": 10,
+                "num_eweights": 3,
+            },
         }
 
     def test_ace_counts(self):
@@ -76,9 +92,15 @@ class TestCombinedHyperparameters(unittest.TestCase):
 
     def test_snap_counts(self):
         cfg = {
-            "RCUT": {"min_rcut": 5.0, "max_rcut": 6.0, "num_rcut": 2},
-            "TWOJMAX": {"min_twojmax": 4, "max_twojmax": 6},
-            "EWEIGHT": {"middle_eweight": 10, "num_eweights": 2},
+            "ourHyperparameters": {
+                "min_rcut": 5.0,
+                "max_rcut": 6.0,
+                "num_rcut": 2,
+                "min_twojmax": 4,
+                "max_twojmax": 6,
+                "middle_eweight": 10,
+                "num_eweights": 2,
+            },
         }
         with_e = combined_snap_hyperparameters(cfg)
         no_e = combined_snap_hyperparameters(cfg, w_eweight=False)
