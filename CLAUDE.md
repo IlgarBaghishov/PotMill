@@ -1,7 +1,6 @@
 # PotMill
 
 Automated active-design pipeline for machine-learned interatomic potentials.
-(Formerly `autopiad` — the importable package is now `potmill`.)
 
 ## Overview
 

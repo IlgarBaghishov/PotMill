@@ -1,9 +1,5 @@
 # PotMill
 
-(Formerly `autopiad`. The importable package and module entry point are now `potmill`,
-e.g. `python -u -m potmill`. The conda env, repo directory, and `$WORK` launchers below
-intentionally keep their existing `autopiad` names.)
-
 Installation that worked on Chicoma (it might be outdated now):
 
 module purge
