@@ -120,11 +120,6 @@ def vasp(start_path, input_file, job_id, first_index, dirpath):
     os.environ['VASP_COMMAND'] = start_path+"run_vasp_6.3.2_std_ase.sh > vasp_output.log 2>&1"
     os.environ['ASE_VASP_COMMAND'] = start_path+"run_vasp_6.3.2_std_ase.sh > vasp_output.log 2>&1"
 
-    # #check whether this task has been executed already. If so, skip it
-    # if os.path.isfile("b"):
-    #     sys.exit(0)
-
-    #have to set this up accordingly
     try:
         calc = Vasp(xc='pbe',  # Select exchange-correlation functional
                     encut=300, # Plane-wave cutoff

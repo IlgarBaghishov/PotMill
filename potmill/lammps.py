@@ -9,15 +9,7 @@ from ase.calculators.lammpsrun import LAMMPS
 def lammps(start_path, input_file, job_id, first_index):
 
     os.environ['ASE_LAMMPSRUN_COMMAND'] = start_path+"run_lammps_ase.sh"
-    # os.environ['ASE_LAMMPSRUN_COMMAND']="flux run -n 1 -c 1 -g 0 /users/baghishov/codes/lammps/build-fitsnap/lmp"
-    # os.environ['ASE_LAMMPSRUN_COMMAND']="mpirun -np 1 /users/baghishov/codes/lammps/build-fitsnap/lmp"
-    # os.environ['ASE_LAMMPSRUN_COMMAND']="/users/baghishov/codes/lammps/build-fitsnap/lmp"
 
-    # #check whether this task has been executed already. If so, skip it
-    # if os.path.isfile("b"):
-    #     sys.exit(0)
-
-    #have to set this up accordingly
     atom_type_mapping = ["Be"]
     ace_file = start_path + "pot.yace"
     pair_coeff = ['* * ' + ace_file + ' ' + ' '.join(atom_type_mapping)]

@@ -378,7 +378,7 @@ def _write_results(fit_dir, mlip, hyperparameters, fold, res):
     beta_filename = "pot__rcut_" + rcuts_to_string(rcuts, delimiter="_")
     if mlip == "ACE":
         beta_filename += "__nmax_" + nmaxes_to_string(nmaxes, delimiter="_") + \
-            "__lmax_" + nmaxes_to_string(nmaxes, delimiter="_") + "__eweight_%.3f__fold_%i.csv" % (eweight, fold)
+            "__lmax_" + lmaxes_to_string(lmaxes, delimiter="_") + "__eweight_%.3f__fold_%i.csv" % (eweight, fold)
     elif mlip == "SNAP":
         beta_filename += "__2jmax_" + twojmaxes_to_string(twojmaxes, delimiter="_") + \
             "__eweight_%.3f__fold_%i.csv" % (eweight, fold)

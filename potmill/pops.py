@@ -96,11 +96,9 @@ def pops(features_directory, feature_names, vasp_IDs_ready_for_fit, hyperparamet
 
         model = POPSRegression(resampling_method='sobol',resample_density=1.)
         model.fit(a_stack,b_stack)
-        # beta, *_ = np.linalg.lstsq(a_stack, b_stack, rcond)
 
         b_train_pred, b_train_std = model.predict(a_train, return_std=True)
         train_residual = np.square(b_train_pred - b_train)
-        # train_residual = np.square(np.dot(a_train,beta) - b_train)
         train_e_std_mean = np.mean(b_train_std[energy_selector_train])
         train_f_std_mean = np.mean(b_train_std[force_selector_train])
         train_e_rmse = np.sqrt(np.mean(train_residual[energy_selector_train]))
@@ -111,7 +109,6 @@ def pops(features_directory, feature_names, vasp_IDs_ready_for_fit, hyperparamet
         print("Force training RMSE is", np.sqrt(np.mean(train_residual[force_selector_train])), flush=True)
         b_test_pred, b_test_std = model.predict(a_test, return_std=True)
         test_residual = np.square(b_test_pred - b_test)
-        # test_residual = np.square(np.dot(a_test,beta) - b_test)
         test_e_std_mean = np.mean(b_test_std[energy_selector_test])
         test_f_std_mean = np.mean(b_test_std[force_selector_test])
         test_e_rmse = np.sqrt(np.mean(test_residual[energy_selector_test]))
@@ -134,25 +131,5 @@ def pops(features_directory, feature_names, vasp_IDs_ready_for_fit, hyperparamet
                      train_f_rmse_weighted,test_e_rmse_weighted,test_f_rmse_weighted,
                      train_e_std_mean,train_f_std_mean,test_e_std_mean,test_f_std_mean)
             file.write(results_line)
-        
-        # beta_filename = "pot__rcut_" + rcuts_to_string(rcuts,delimiter="_")
-        # if mlip == "ACE":
-        #     beta_filename += "__nmax_" + nmaxes_to_string(nmaxes,delimiter="_") + \
-        #         "__lmax_" + nmaxes_to_string(nmaxes,delimiter="_") + "__eweight_%.3f__fold_%i.csv"%(eweight,fold)
-        # elif mlip == "SNAP":
-        #     beta_filename += "__2jmax_" + twojmaxes_to_string(twojmaxes,delimiter="_") + \
-        #         "__eweight_%.3f__fold_%i.csv"%(eweight,fold)
-        # np.savetxt(beta_filename, beta)
 
-        # # bins={}
-        # # bins['e']=0.5
-        # # bins['f']=2
-        # # binned_errors=compute_binned_errors(beta,train_a,train_b,test_a,test_b,bins)
-
-        # # print("Hyperparameters rcut, 2Jmax and eweight are", rcut, twojmax, eweight)
-        # # print("Errors", errors)
-        # # print("Binned errors", binned_errors)
-
-    # print("Time elapsed: %.5f seconds" % (time.time()-start_time))
-    
     return hyperparameters
