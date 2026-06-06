@@ -5,7 +5,7 @@ The pipeline is configured by a ``config.ini`` whose sections are of two kinds:
 * "our" sections (``MAIN``, ``RCUT``, ``NMAX``, ..., ``FitSNAP``) carry PotMill's own
   parameters. Their defaults live in ``ConfigManager.DEFAULTS`` (the single source of truth),
   values are type-coerced, and unknown keys are warned about to catch typos.
-* passthrough sections (``FairChemCalculator``, ``Vasp``, ``LAMMPS``) carry keyword arguments
+* passthrough sections (``FAIRChemCalculator``, ``Vasp``, ``LAMMPS``) carry keyword arguments
   for external calculator classes. Their keys are forwarded verbatim and are NOT validated --
   anything the user omits falls back to that library's own default. ``STRUCTUREGEN`` is also
   left raw because its defaults are method-dependent and resolved inside ``structuregen``.
@@ -18,7 +18,7 @@ import configparser
 
 from potmill.tools import interpret_string, configparse
 
-PASSTHROUGH_SECTIONS = ("FairChemCalculator", "Vasp", "LAMMPS")
+PASSTHROUGH_SECTIONS = ("FAIRChemCalculator", "Vasp", "LAMMPS")
 RAW_SECTIONS = ("STRUCTUREGEN", *PASSTHROUGH_SECTIONS)
 
 
@@ -35,7 +35,7 @@ class ConfigManager:
             "n_fold": 3, "fit_engine": "incremental", "auto_reduce_hyperparameters": 0,
         },
         "FitSNAP": {"mlip": "ACE", "chem_elem": None, "filename": "FitSNAP.in"},
-        "ourLabeling": {"calculator": "FairChemCalculator"},
+        "ourLabeling": {"calculator": "FAIRChemCalculator"},
         "RCUT": {"min_rcut": 5.0, "max_rcut": 6.5, "num_rcut": 4},
         "NMAX": {"min_nmax": 5, "max_nmax": 9},
         "LMAX": {"min_lmax": 0, "max_lmax": 4},

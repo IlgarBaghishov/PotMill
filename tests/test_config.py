@@ -29,9 +29,9 @@ class TestConfigManager(unittest.TestCase):
 
     def test_passthrough_section_is_raw(self):
         with tempfile.TemporaryDirectory() as d:
-            path = _write(d, "[FairChemCalculator]\ntask_name = omat\ndevice = cpu\n")
+            path = _write(d, "[FAIRChemCalculator]\ntask_name = omat\ndevice = cpu\n")
             cfg = ConfigManager(path)
-        self.assertEqual(cfg["FairChemCalculator"], {"task_name": "omat", "device": "cpu"})
+        self.assertEqual(cfg["FAIRChemCalculator"], {"task_name": "omat", "device": "cpu"})
 
     def test_unknown_key_warns(self):
         with tempfile.TemporaryDirectory() as d:

@@ -1,4 +1,4 @@
-"""UMA (fairchem) labeling backend, configured via the [FairChemCalculator] section."""
+"""UMA (fairchem) labeling backend, configured via the [FAIRChemCalculator] section."""
 
 import os
 from ase import Atoms

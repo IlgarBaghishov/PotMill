@@ -27,7 +27,7 @@ class TestMakeLabeling(unittest.TestCase):
     def test_fairchem_kwargs_defaults_and_override(self):
         self.assertEqual(labeling._fairchem_kwargs(_cfg()),
                          {"name": "uma-m-1p1", "task_name": "omat", "device": "cuda"})
-        kw = labeling._fairchem_kwargs(_cfg("[FairChemCalculator]\ndevice = cpu\nname = uma-s-1\n"))
+        kw = labeling._fairchem_kwargs(_cfg("[FAIRChemCalculator]\ndevice = cpu\nname = uma-s-1\n"))
         self.assertEqual(kw["device"], "cpu")
         self.assertEqual(kw["name"], "uma-s-1")
         self.assertEqual(kw["task_name"], "omat")  # default preserved

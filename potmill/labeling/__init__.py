@@ -1,5 +1,5 @@
 """Labeling backends. The backend is selected by [ourLabeling] calculator and configured by the
-matching passthrough section ([FairChemCalculator] / [Vasp] / [LAMMPS]); make_labeling() returns
+matching passthrough section ([FAIRChemCalculator] / [Vasp] / [LAMMPS]); make_labeling() returns
 everything __main__ needs to wire the block-allocated labeling executor.
 
 Each backend's init_function returns a dict whose keys (calc / predictor / vasp_kwargs / ...) are
@@ -19,7 +19,7 @@ Labeling = namedtuple("Labeling", ["init_function", "per_config", "batched"])
 
 
 def _fairchem_kwargs(config):
-    kwargs = dict(config.get("FairChemCalculator", {}))
+    kwargs = dict(config.get("FAIRChemCalculator", {}))
     kwargs.setdefault("name", "uma-m-1p1")
     kwargs.setdefault("task_name", "omat")
     kwargs.setdefault("device", "cuda")
@@ -28,9 +28,9 @@ def _fairchem_kwargs(config):
 
 def make_labeling(config):
     """Return the Labeling(init_function, per_config, batched) for the configured backend."""
-    name = config.get_value("ourLabeling", "calculator", "FairChemCalculator")
+    name = config.get_value("ourLabeling", "calculator", "FAIRChemCalculator")
     batched = config["MAIN"]["label_batch_size"] > 1
-    if name == "FairChemCalculator":
+    if name == "FAIRChemCalculator":
         kwargs = _fairchem_kwargs(config)
         init = make_init_uma_predictor(kwargs) if batched else make_init_uma_calculator(kwargs)
         return Labeling(init, uma, uma_batch)
@@ -39,4 +39,4 @@ def make_labeling(config):
     if name == "LAMMPS":
         return Labeling(make_init_lammps(config), lammps, None)
     raise ValueError(f"Unknown [ourLabeling] calculator '{name}' "
-                     f"(supported: FairChemCalculator, Vasp, LAMMPS)")
+                     f"(supported: FAIRChemCalculator, Vasp, LAMMPS)")
