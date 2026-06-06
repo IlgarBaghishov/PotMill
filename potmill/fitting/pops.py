@@ -5,7 +5,7 @@ def pops(features_directory, feature_names, vasp_IDs_ready_for_fit, hyperparamet
     import numpy as np
     from POPSRegression import POPSRegression
     from potmill.tools import rcuts_to_string, nmaxes_to_string, lmaxes_to_string, twojmaxes_to_string
-    from potmill.fit import config_fold, _feature_indices
+    from potmill.fitting.fit import config_fold, _feature_indices
     from potmill.bfile import read_b
 
     if mlip == "ACE":

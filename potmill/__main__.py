@@ -3,11 +3,10 @@ from potmill.tools import create_rcut_range, rcuts_to_string, nmaxes_to_string, 
 from potmill.tools import hyperparameters_to_string, create_eweight_range
 from potmill.tools import combined_ace_hyperparameters, combined_snap_hyperparameters
 from potmill.config import ConfigManager, load_fitsnap_config
-from potmill.featurize import featurize, init_featurize
+from potmill.featurization import featurize, init_featurize
 from potmill.labeling import make_labeling
-from potmill.fit import fit, foldfit, init_fit
-from potmill.pareto import pareto
-from potmill.pops import pops
+from potmill.fitting import fit, foldfit, init_fit, pops
+from potmill.analysis import pareto
 from potmill.monitor import ResourceMonitor
 import flux
 import concurrent.futures

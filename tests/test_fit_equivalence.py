@@ -6,7 +6,7 @@ import unittest
 import numpy as np
 
 from potmill.bfile import write_b
-from potmill.fit import fit, foldfit, config_fold, _feature_indices
+from potmill.fitting import fit, foldfit, config_fold, _feature_indices
 
 
 def _write_combined_b(path, configs):

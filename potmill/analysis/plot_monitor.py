@@ -7,7 +7,7 @@ Generates a 3-panel figure with shared x-axis (elapsed time):
   Panel 3: Gantt chart of pipeline stage activity
 
 Usage:
-    python -m potmill.plot_monitor [path/to/pipeline_monitor.csv] [-o output.pdf]
+    python -m potmill.analysis.plot_monitor [path/to/pipeline_monitor.csv] [-o output.pdf]
 """
 
 import argparse
