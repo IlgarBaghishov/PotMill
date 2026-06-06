@@ -81,7 +81,7 @@ that handles everything once you edit its `USER-SPECIFIC PATHS` block:
 cd $SCRATCH/potmill_experiments
 mkdir my_HBeW_run && cd my_HBeW_run
 cp <repo>/examples/HBeW/ACE/{inputfile,FitSNAP.in,run_perlmutter.sh} .
-# edit run_perlmutter.sh CONDA_ENV / AUTOPIAD / EXECUTORLIB / SUBDATAPY paths
+# edit run_perlmutter.sh CONDA_ENV / POTMILL / EXECUTORLIB / SUBDATAPY paths
 sbatch run_perlmutter.sh
 ```
 
