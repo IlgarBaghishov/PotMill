@@ -1,7 +1,8 @@
-import numpy as np
 import os
 from ase import Atoms
 from ase.io import read, write
+
+from potmill.bfile import write_b
 
 
 def init_uma_calculator():
@@ -30,13 +31,9 @@ def uma(start_path, input_file, job_id, first_index, dirpath, calc):
     atoms.calc = calc
 
     ener = atoms.get_potential_energy()
-    forces = atoms.get_forces().ravel()
+    forces = atoms.get_forces()
 
-    n_atoms = len(atoms)
-    b = np.vstack([np.arange(first_index,first_index+1+3*n_atoms),
-                    np.full(1+3*n_atoms,job_id),
-                    np.concatenate([np.array([ener])/n_atoms,forces])]).T
-    np.savetxt("b", b, delimiter=',', fmt=['%i','%i','%.10f'])
+    write_b("b", job_id, ener, len(atoms), forces)
 
     write(f"atoms_{job_id}.traj", images=atoms, format='traj')
 
@@ -80,10 +77,7 @@ def uma_batch(start_path, atoms_list, job_ids, labeling_dir, predictor):
 
         dirpath = f"{labeling_dir}/{job_id}/"
         os.makedirs(dirpath, exist_ok=True)
-        b = np.vstack([np.arange(0, 1 + 3*n_atoms),
-                        np.full(1 + 3*n_atoms, job_id),
-                        np.concatenate([np.array([ener])/n_atoms, f])]).T
-        np.savetxt(f"{dirpath}/b", b, delimiter=',', fmt=['%i','%i','%.10f'])
+        write_b(f"{dirpath}/b", job_id, ener, n_atoms, f)
         write(f"{dirpath}/atoms_{job_id}.traj", images=atoms, format='traj')
         atoms.calc = None
         results.append({"job_ID": job_id, "atoms": atoms})

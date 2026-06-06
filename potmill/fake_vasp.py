@@ -1,15 +1,10 @@
-import numpy as np
 import pandas as pd
 
+from potmill.bfile import write_b
 
-def fake_vasp(force_energy_filename, job_id, first_index):
-    
-    forces,ener = pd.read_pickle(force_energy_filename).iloc[job_id,[0,2]]
 
-    b = np.vstack([np.arange(first_index,first_index+1+forces.size),
-                    np.full(1+forces.size,job_id),
-                    np.concatenate([np.array([ener])/forces.size,forces.ravel()])]).T
-    
-    np.savetxt("b", b, delimiter=',', fmt=['%i','%i','%.10f'])
-
+def fake_vasp(force_energy_filename, job_id):
+    """Mock labeling for testing: read a precomputed (forces, energy) pickle and write a b file."""
+    forces, ener = pd.read_pickle(force_energy_filename).iloc[job_id, [0, 2]]
+    write_b("b", job_id, ener, forces.size // 3, forces)
     return job_id

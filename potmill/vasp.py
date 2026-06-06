@@ -6,6 +6,8 @@ from ase.calculators.vasp import Vasp
 from ase.io import read, write
 from shutil import make_archive
 
+from potmill.bfile import write_b
+
 
 def write_json(data, jsonfilename):
     jsonfile = open(jsonfilename, "w")
@@ -148,13 +150,9 @@ def vasp(start_path, input_file, job_id, first_index, dirpath):
     #execute the calculation
     try:
         ener = atoms.get_potential_energy()
-        forces = atoms.get_forces().ravel()
+        forces = atoms.get_forces()
 
-        n_atoms = len(atoms)
-        b = np.vstack([np.arange(first_index,first_index+1+3*n_atoms),
-                       np.full(1+3*n_atoms,job_id),
-                       np.concatenate([np.array([ener])/n_atoms,forces])]).T
-        np.savetxt("b", b, delimiter=',', fmt=['%i','%i','%.10f'])
+        write_b("b", job_id, ener, len(atoms), forces)
 
         #write the output in ASE traj format
         write(f"atoms_{job_id}.traj", images=atoms, format='traj')
