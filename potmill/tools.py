@@ -4,24 +4,14 @@ import sys
 from itertools import product
 
 
-def rcuts_to_string(rcuts, delimiter=" "):
-    if isinstance(rcuts,int) or isinstance(rcuts,float): return str(rcuts)
-    if isinstance(rcuts,list): return delimiter.join([str(rcut) for rcut in rcuts])
+def seq_to_string(value, delimiter=" "):
+    """Format a hyperparameter value (scalar or list) as a delimited string."""
+    if isinstance(value, (int, float)):
+        return str(value)
+    return delimiter.join(str(v) for v in value)
 
 
-def nmaxes_to_string(nmaxes, delimiter=" "):
-    if isinstance(nmaxes,int): return str(nmaxes)
-    if isinstance(nmaxes,list): return delimiter.join([str(nmax) for nmax in nmaxes])
-
-
-def lmaxes_to_string(lmaxes, delimiter=" "):
-    if isinstance(lmaxes,int): return str(lmaxes)
-    if isinstance(lmaxes,list): return delimiter.join([str(lmax) for lmax in lmaxes])
-
-
-def twojmaxes_to_string(twojmaxes, delimiter=" "):
-    if isinstance(twojmaxes,int): return str(twojmaxes)
-    if isinstance(twojmaxes,list): return delimiter.join([str(twojmax) for twojmax in twojmaxes])
+rcuts_to_string = nmaxes_to_string = lmaxes_to_string = twojmaxes_to_string = seq_to_string
 
 
 def hyperparameters_to_string(mlip, hyperparameters, delimiter=" ", w_eweight=True):
@@ -61,34 +51,27 @@ def create_rcut_range(min_rcut,max_rcut,num_rcut):
     return rcut_range
 
 
-def create_nmax_range(min_nmax,max_nmax):
-    if isinstance(min_nmax,list):
-        nmax_range = [np.arange(min_nmax[i],max_nmax[i]+1).tolist() for i in range(len(min_nmax))]
-        # nmax_range = np.vstack(nmax_range).T.tolist()
-        nmax_range = [list(nmax_list) for nmax_list in product(*nmax_range)]
-    if isinstance(min_nmax,int):   
-        nmax_range = [[i] for i in range(min_nmax,max_nmax+1)]
-    return nmax_range
+def _int_grid(mins, maxs, combine):
+    """Integer hyperparameter grid. Scalar -> [[v]] per value; list -> per-rank ranges
+    combined either by cartesian 'product' (nmax/lmax) or element-wise 'zip' (twojmax)."""
+    if isinstance(mins, int):
+        return [[i] for i in range(mins, maxs + 1)]
+    ranges = [np.arange(mins[i], maxs[i] + 1).tolist() for i in range(len(mins))]
+    if combine == "product":
+        return [list(c) for c in product(*ranges)]
+    return np.vstack(ranges).T.tolist()
 
 
-def create_lmax_range(min_lmax,max_lmax):
-    if isinstance(min_lmax,list):
-        lmax_range = [np.arange(min_lmax[i],max_lmax[i]+1).tolist() for i in range(len(min_lmax))]
-        # lmax_range = np.vstack(lmax_range).T.tolist()
-        lmax_range = [list(lmax_list) for lmax_list in product(*lmax_range)]
-    if isinstance(min_lmax,int):   
-        lmax_range = [[i] for i in range(min_lmax,max_lmax+1)]
-    return lmax_range
+def create_nmax_range(min_nmax, max_nmax):
+    return _int_grid(min_nmax, max_nmax, "product")
 
 
-def create_twojmax_range(min_twojmax,max_twojmax):
-    if isinstance(min_twojmax,list):
-        twojmax_range = [np.arange(min_twojmax[i],max_twojmax[i]+1).tolist() for i in range(len(min_twojmax))]
-        twojmax_range = np.vstack(twojmax_range).T.tolist()
-        # twojmax_range = [list(twojmax_list) for twojmax_list in product(*twojmax_range)]
-    if isinstance(min_twojmax,int):   
-        twojmax_range = [[i] for i in range(min_twojmax,max_twojmax+1)]
-    return twojmax_range
+def create_lmax_range(min_lmax, max_lmax):
+    return _int_grid(min_lmax, max_lmax, "product")
+
+
+def create_twojmax_range(min_twojmax, max_twojmax):
+    return _int_grid(min_twojmax, max_twojmax, "zip")
 
 
 def create_eweight_range(middle_eweight,n_eweights):
