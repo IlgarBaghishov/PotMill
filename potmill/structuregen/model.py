@@ -1,9 +1,10 @@
 import gc
-import numpy as np
+from functools import partial
+
 import jax
 import jax.numpy as jaxnp
+import numpy as np
 from jax import grad, jit
-from functools import partial
 
 
 class CNModel:
@@ -19,9 +20,19 @@ class CNModel:
     descriptors, this is equivalent to using the full space (binary case).
     """
 
-    def __init__(self, n_elements, n_descriptors_tot, energy_mode=True,
-                 populations=None, mask=None, cross_=None, renorm_=None,
-                 mean_=None, count_=0, epsilon_=1e-6):
+    def __init__(
+        self,
+        n_elements,
+        n_descriptors_tot,
+        energy_mode=True,
+        populations=None,
+        mask=None,
+        cross_=None,
+        renorm_=None,
+        mean_=None,
+        count_=0,
+        epsilon_=1e-6,
+    ):
         self.n_params = 1  # required by MLIAPPY
         self.n_elements = n_elements
         self.epsilon = epsilon_
@@ -125,8 +136,7 @@ class CNManager:
     tentatively evaluate candidate configurations before accepting them.
     """
 
-    def __init__(self, n_descriptors, epsilon=0, mean=None, renorm=None,
-                 energy_mode=True):
+    def __init__(self, n_descriptors, epsilon=0, mean=None, renorm=None, energy_mode=True):
         self.epsilon = epsilon
         self.count = 0
         self.n_descriptors = n_descriptors
@@ -138,12 +148,13 @@ class CNManager:
         self.energy_mode = energy_mode
 
         self.mean = mean if mean is not None else np.zeros((self.n_descriptors,))
-        self.renorm = renorm if renorm is not None else np.ones((self.n_descriptors, self.n_descriptors))
+        self.renorm = (
+            renorm if renorm is not None else np.ones((self.n_descriptors, self.n_descriptors))
+        )
 
     def print_status(self):
         cond, det = self.evaluate()
-        print("STATUS  -- COUNT ", self.count, " COND: ", cond, "DET: ", det,
-              flush=True)
+        print("STATUS  -- COUNT ", self.count, " COND: ", cond, "DET: ", det, flush=True)
 
     def update(self, dd, key=None):
         self.data.append(dd)
@@ -165,6 +176,7 @@ class CNManager:
             self.s = s
         except Exception:
             import traceback
+
             traceback.print_exc()
 
     def evaluate(self, dd=None, key=None):

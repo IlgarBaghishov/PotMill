@@ -6,24 +6,25 @@ def max_entropy_atoms_iterator(structuregen_config):
     # Set threading environment BEFORE importing LAMMPS/JAX/numpy.
     # LAMMPS SNAP bispectrum computation uses OpenMP, and JAX/MKL/OpenBLAS
     # also respect these variables. Must be set before library import.
-    n_threads = str(structuregen_config.get('n_threads', 1))
-    os.environ['OMP_NUM_THREADS'] = n_threads
-    os.environ['MKL_NUM_THREADS'] = n_threads
-    os.environ['OPENBLAS_NUM_THREADS'] = n_threads
+    n_threads = str(structuregen_config.get("n_threads", 1))
+    os.environ["OMP_NUM_THREADS"] = n_threads
+    os.environ["MKL_NUM_THREADS"] = n_threads
+    os.environ["OPENBLAS_NUM_THREADS"] = n_threads
 
     # Configure JAX for CPU with 64-bit precision
     import jax
+
     jax.config.update("jax_enable_x64", True)
     jax.config.update("jax_platform_name", "cpu")
 
-    from potmill.structuregen.renorm import RandomEntropyInitializer
     from potmill.structuregen.optimizer import EntropyMaximizer
+    from potmill.structuregen.renorm import RandomEntropyInitializer
 
     os.makedirs("renorm_configs", exist_ok=True)
     os.makedirs("configs", exist_ok=True)
 
-    worker_id = structuregen_config.get('_worker_id', 0)
-    shared_dir = structuregen_config.get('shared_state_dir', None)
+    worker_id = structuregen_config.get("_worker_id", 0)
+    shared_dir = structuregen_config.get("shared_state_dir", None)
 
     if shared_dir:
         phase1_signal = os.path.join(shared_dir, "phase1_done")
@@ -32,6 +33,7 @@ def max_entropy_atoms_iterator(structuregen_config):
             rand_entropy = RandomEntropyInitializer(structuregen_config)
             rand_entropy.looping()
             import shutil
+
             for fname in ["renormalization_matrix.pckl", "random-manager.p"]:
                 shutil.copy(fname, shared_dir)
             # Flush filesystem buffers before creating signal file.
@@ -41,12 +43,13 @@ def max_entropy_atoms_iterator(structuregen_config):
             fd = os.open(shared_dir, os.O_RDONLY)
             os.fsync(fd)
             os.close(fd)
-            open(phase1_signal, 'w').close()
+            open(phase1_signal, "w").close()
         else:
             # Other workers wait for Phase 1 results
             while not os.path.exists(phase1_signal):
                 time.sleep(0.5)
             import shutil
+
             for fname in ["renormalization_matrix.pckl", "random-manager.p"]:
                 shutil.copy(os.path.join(shared_dir, fname), ".")
     else:

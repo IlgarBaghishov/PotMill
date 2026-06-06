@@ -17,11 +17,13 @@ import pandas as pd
 def write_b(path, job_id, energy, n_atoms, forces):
     """Write one configuration's targets to ``path`` (see module docstring)."""
     forces = np.asarray(forces).ravel()
-    rows = np.vstack([
-        np.arange(0, 1 + forces.size),
-        np.full(1 + forces.size, job_id),
-        np.concatenate([[energy / n_atoms], forces]),
-    ]).T
+    rows = np.vstack(
+        [
+            np.arange(0, 1 + forces.size),
+            np.full(1 + forces.size, job_id),
+            np.concatenate([[energy / n_atoms], forces]),
+        ]
+    ).T
     np.savetxt(path, rows, delimiter=",", fmt=["%i", "%i", "%.10f"])
 
 

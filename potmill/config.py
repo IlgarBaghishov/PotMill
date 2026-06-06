@@ -11,12 +11,12 @@ The pipeline is configured by a ``config.ini`` whose sections are of two kinds:
   left raw because its defaults are method-dependent and resolved inside ``structuregen``.
 """
 
+import configparser
+import copy
 import os
 import re
-import copy
-import configparser
 
-from potmill.tools import interpret_string, configparse
+from potmill.tools import configparse, interpret_string
 
 PASSTHROUGH_SECTIONS = ("FAIRChemCalculator", "Vasp", "LAMMPS")
 RAW_SECTIONS = ("STRUCTUREGEN", *PASSTHROUGH_SECTIONS)
@@ -27,12 +27,24 @@ class ConfigManager:
 
     DEFAULTS = {
         "MAIN": {
-            "resume": 0, "entropy": 1, "featurize": 1, "labeling": 1, "fit": 1,
-            "pareto": 1, "pops": 0,
-            "nconfigurations": 1000, "batch_size": 1000, "label_batch_size": 1,
-            "ncores_per_fit": 1, "featurize_workers_per_node": 1,
-            "fit_gpus_per_node": 2, "fit_device": "cuda", "fit_method": "svd",
-            "n_fold": 3, "fit_engine": "incremental", "auto_reduce_hyperparameters": 0,
+            "resume": 0,
+            "entropy": 1,
+            "featurize": 1,
+            "labeling": 1,
+            "fit": 1,
+            "pareto": 1,
+            "pops": 0,
+            "nconfigurations": 1000,
+            "batch_size": 1000,
+            "label_batch_size": 1,
+            "ncores_per_fit": 1,
+            "featurize_workers_per_node": 1,
+            "fit_gpus_per_node": 2,
+            "fit_device": "cuda",
+            "fit_method": "svd",
+            "n_fold": 3,
+            "fit_engine": "incremental",
+            "auto_reduce_hyperparameters": 0,
         },
         "FitSNAP": {"mlip": "ACE", "chem_elem": None, "filename": "FitSNAP.in"},
         "ourLabeling": {"calculator": "FAIRChemCalculator"},
@@ -90,16 +102,21 @@ class ConfigManager:
         """Warn (do NOT override -- users may have custom pair_style setups) when the FitSNAP.in
         [REFERENCE] pair_style cutoff is below [RCUT] max_rcut. LAMMPS compute pace aborts every
         featurize task with rcut > pair_style cutoff (src/ML-PACE/compute_pace.cpp:129)."""
-        match = re.match(r"\s*zero\s+([0-9.]+)", fitsnap_config.get("REFERENCE", {}).get("pair_style", ""))
+        match = re.match(
+            r"\s*zero\s+([0-9.]+)", fitsnap_config.get("REFERENCE", {}).get("pair_style", "")
+        )
         if not match:
             return
         max_rcut = self._config["RCUT"]["max_rcut"]
         max_rcut = max(max_rcut) if isinstance(max_rcut, list) else float(max_rcut)
         ps_cut = float(match.group(1))
         if ps_cut < max_rcut:
-            print(f"WARNING: FitSNAP.in [REFERENCE] pair_style cutoff ({ps_cut}) < [RCUT] max_rcut "
-                  f"({max_rcut}). LAMMPS will abort featurize tasks with 'compute pace cutoff > "
-                  f"pairwise cutoff'. FIX FitSNAP.in:  pair_style = zero {max_rcut + 0.1}", flush=True)
+            print(
+                f"WARNING: FitSNAP.in [REFERENCE] pair_style cutoff ({ps_cut}) < [RCUT] max_rcut "
+                f"({max_rcut}). LAMMPS will abort featurize tasks with 'compute pace cutoff > "
+                f"pairwise cutoff'. FIX FitSNAP.in:  pair_style = zero {max_rcut + 0.1}",
+                flush=True,
+            )
 
 
 def load_fitsnap_config(path):

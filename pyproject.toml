@@ -65,12 +65,20 @@ select = [
 ]
 ignore = [
     "E501",     # line length (handled by the formatter)
+    "E702",     # multiple statements per line -- concise array/assignment code is preferred here
+    "UP031",    # printf-style formatting is fine (clearer for the RMSE/CSV format strings)
+    "SIM117",   # nested with -- the nested executor structure in __main__ is intentional
     "PLC0415",  # imports deferred inside functions (intentional for cloudpickle workers)
     "PLR0913",  # too many arguments
     "PLR0915",  # too many statements
     "PLR0912",  # too many branches
     "PLR2004",  # magic value comparison
 ]
+
+[tool.ruff.lint.per-file-ignores]
+# The structuregen numeric core is ported, validated code held to a lighter style bar to avoid
+# reformatting regressions; correctness rules (E, F) still apply.
+"potmill/structuregen/*" = ["SIM115", "B006", "B905", "C403", "C414", "SIM103", "SIM118"]
 
 [tool.black]
 line-length = 100

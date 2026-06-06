@@ -1,15 +1,20 @@
-import os
-import sys
 import csv
-import time
-import threading
+import os
 import subprocess
+import sys
+import threading
+import time
 from datetime import datetime
 
-
 TASK_STAGES = [
-    "entropy", "labeling", "b_collecting", "featurization",
-    "fitting", "cost", "pareto", "pops",
+    "entropy",
+    "labeling",
+    "b_collecting",
+    "featurization",
+    "fitting",
+    "cost",
+    "pareto",
+    "pops",
 ]
 
 
@@ -25,14 +30,16 @@ class ResourceMonitor:
         "memory.used,memory.total,temperature.gpu,power.draw"
     )
     CSV_HEADER = [
-        "timestamp", "elapsed_s",
-        "mean_gpu_util_pct", "mean_gpu_mem_util_pct",
-        "mean_gpu_mem_used_gib", "mean_gpu_power_w",
+        "timestamp",
+        "elapsed_s",
+        "mean_gpu_util_pct",
+        "mean_gpu_mem_util_pct",
+        "mean_gpu_mem_used_gib",
+        "mean_gpu_power_w",
         "mean_cpu_util_pct",
     ] + [col for s in TASK_STAGES for col in (f"n_{s}", f"n_{s}_running")]
 
-    def __init__(self, log_dir, interval=30.0, console_interval=60.0,
-                 nodelist=None, n_nodes=1):
+    def __init__(self, log_dir, interval=30.0, console_interval=60.0, nodelist=None, n_nodes=1):
         self.log_dir = log_dir
         self.interval = interval
         self.console_interval = console_interval
@@ -47,7 +54,7 @@ class ResourceMonitor:
         self._last_console_time = 0.0
         self._start_time = None
         self._prev_cpu_stats = {}  # node_rank -> (total, active)
-        self._task_counts = {}     # stage_name -> remaining count
+        self._task_counts = {}  # stage_name -> remaining count
 
     def __enter__(self):
         csv_path = os.path.join(self.log_dir, "pipeline_monitor.csv")
@@ -103,6 +110,7 @@ class ResourceMonitor:
                     self._last_console_time = now
             except Exception as e:
                 import traceback
+
                 print(f"[Monitor] Warning: monitoring error: {e}", file=sys.stderr, flush=True)
                 traceback.print_exc()
             self._stop_event.wait(self.interval)
@@ -124,7 +132,11 @@ class ResourceMonitor:
 
         try:
             result = subprocess.run(
-                cmd, capture_output=True, text=True, timeout=timeout,
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+                check=False,
             )
         except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
             return None
@@ -134,8 +146,8 @@ class ResourceMonitor:
 
     def _parse_gpu_output(self, output):
         rows = []
-        for line in output.strip().splitlines():
-            line = line.strip()
+        for raw_line in output.strip().splitlines():
+            line = raw_line.strip()
             if not line:
                 continue
             if self.n_nodes > 1 and ": " in line:
@@ -152,17 +164,19 @@ class ResourceMonitor:
             if len(parts) < 8:
                 continue
 
-            rows.append({
-                "node_rank": rank,
-                "gpu_index": parts[0],
-                "gpu_name": parts[1],
-                "gpu_util_pct": parts[2],
-                "mem_util_pct": parts[3],
-                "mem_used_mib": parts[4],
-                "mem_total_mib": parts[5],
-                "temperature_c": parts[6],
-                "power_draw_w": parts[7],
-            })
+            rows.append(
+                {
+                    "node_rank": rank,
+                    "gpu_index": parts[0],
+                    "gpu_name": parts[1],
+                    "gpu_util_pct": parts[2],
+                    "mem_util_pct": parts[3],
+                    "mem_used_mib": parts[4],
+                    "mem_total_mib": parts[5],
+                    "temperature_c": parts[6],
+                    "power_draw_w": parts[7],
+                }
+            )
         return rows
 
     # ---- CPU collection (/proc/stat) ----
@@ -178,7 +192,11 @@ class ResourceMonitor:
 
         try:
             result = subprocess.run(
-                cmd, capture_output=True, text=True, timeout=timeout,
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+                check=False,
             )
         except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
             return None
@@ -186,8 +204,8 @@ class ResourceMonitor:
             return None
 
         utils = []
-        for line in result.stdout.strip().splitlines():
-            line = line.strip()
+        for raw_line in result.stdout.strip().splitlines():
+            line = raw_line.strip()
             if not line:
                 continue
             if self.n_nodes > 1 and ": " in line:
@@ -225,7 +243,7 @@ class ResourceMonitor:
 
     def _write_csv(self, elapsed_s, gpu_data, cpu_util, task_counts):
         gpu_utils, mem_utils, mem_used, powers = [], [], [], []
-        for row in (gpu_data or []):
+        for row in gpu_data or []:
             try:
                 gpu_utils.append(float(row["gpu_util_pct"]))
                 mem_utils.append(float(row["mem_util_pct"]))
@@ -238,10 +256,10 @@ class ResourceMonitor:
         csv_row = [
             datetime.now().isoformat(timespec="seconds"),
             f"{elapsed_s:.1f}",
-            f"{sum(gpu_utils)/n:.1f}" if gpu_utils else "",
-            f"{sum(mem_utils)/n:.1f}" if mem_utils else "",
-            f"{sum(mem_used)/n/1024:.2f}" if mem_used else "",
-            f"{sum(powers)/n:.1f}" if powers else "",
+            f"{sum(gpu_utils) / n:.1f}" if gpu_utils else "",
+            f"{sum(mem_utils) / n:.1f}" if mem_utils else "",
+            f"{sum(mem_used) / n / 1024:.2f}" if mem_used else "",
+            f"{sum(powers) / n:.1f}" if powers else "",
             f"{cpu_util:.1f}" if cpu_util is not None else "",
         ]
         for stage in TASK_STAGES:
@@ -278,9 +296,11 @@ class ResourceMonitor:
                 avg_mem = sum(mem_used) / n / 1024
                 avg_mem_total = sum(mem_total) / n / 1024 if mem_total else 0
                 now = datetime.now().strftime("%H:%M:%S")
-                gpu_line = (f"[Monitor] {now} | {n} GPUs | "
-                            f"Util: avg={avg_util:.0f}% min={min_util:.0f}% max={max_util:.0f}% | "
-                            f"Mem: avg={avg_mem:.1f}/{avg_mem_total:.1f} GiB")
+                gpu_line = (
+                    f"[Monitor] {now} | {n} GPUs | "
+                    f"Util: avg={avg_util:.0f}% min={min_util:.0f}% max={max_util:.0f}% | "
+                    f"Mem: avg={avg_mem:.1f}/{avg_mem_total:.1f} GiB"
+                )
 
                 if self.n_nodes > 1:
                     by_node = {}

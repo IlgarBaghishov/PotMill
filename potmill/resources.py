@@ -20,6 +20,7 @@ def query_flux():
     """Return (resource_status, ncores, ngpus, nnodes) for the current Flux allocation."""
     import flux
     import flux.resource
+
     handle = flux.Flux()
     rs = flux.resource.status.ResourceStatusRPC(handle).get()
     rl = flux.resource.list.resource_list(handle).get()
@@ -34,12 +35,16 @@ def worker_layout(config, nnodes, ncores, ngpus):
     workers. n_entropy_workers and featurize_workers_per_node are per-node knobs scaled by nnodes."""
     gpus_per_node = ngpus // nnodes if nnodes else 0
     fit_gpus_per_node = config["MAIN"]["fit_gpus_per_node"]
-    assert 0 < fit_gpus_per_node < gpus_per_node, \
-        f"fit_gpus_per_node ({fit_gpus_per_node}) must be >0 and leave GPUs for labeling " \
+    assert 0 < fit_gpus_per_node < gpus_per_node, (
+        f"fit_gpus_per_node ({fit_gpus_per_node}) must be >0 and leave GPUs for labeling "
         f"(gpus_per_node={gpus_per_node})"
+    )
     n_entropy_workers = config["STRUCTUREGEN"].get("n_entropy_workers", 1) * nnodes
     return Resources(
-        nnodes=nnodes, ncores=ncores, ngpus=ngpus, gpus_per_node=gpus_per_node,
+        nnodes=nnodes,
+        ncores=ncores,
+        ngpus=ngpus,
+        gpus_per_node=gpus_per_node,
         n_label_workers=(gpus_per_node - fit_gpus_per_node) * nnodes,
         n_fit_workers=fit_gpus_per_node * nnodes,
         n_entropy_workers=n_entropy_workers,

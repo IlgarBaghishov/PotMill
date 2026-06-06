@@ -1,19 +1,31 @@
-import numpy as np
 import itertools
+
+import numpy as np
 from scipy import stats
 from scipy.stats.sampling import NumericalInverseHermite
 
 # Nearest-neighbor distances from Kittel, Introduction to Solid State Physics, 8th ed.
 NN_DISTS = {
-    "H": 0.75, "Be": 2.22, "C": 1.54, "Al": 2.86,
-    "W": 2.74, "Re": 2.74, "Os": 2.68, "Pu": 3.1,
-    "U": 2.75, "O": 1.2, "Sb": 2.91, "Te": 2.86, "Cs": 5.24,
+    "H": 0.75,
+    "Be": 2.22,
+    "C": 1.54,
+    "Al": 2.86,
+    "W": 2.74,
+    "Re": 2.74,
+    "Os": 2.68,
+    "Pu": 3.1,
+    "U": 2.75,
+    "O": 1.2,
+    "Sb": 2.91,
+    "Te": 2.86,
+    "Cs": 5.24,
 }
 
 
 def _random_combination_with_replacement(iterable, r):
     """Random selection from itertools.combinations_with_replacement(iterable, r)."""
     import random
+
     pool = tuple(iterable)
     n = len(pool)
     indices = sorted(random.sample(range(n + r - 1), k=r))
@@ -33,8 +45,9 @@ class BinaryRadiusSampler:
 
     def __init__(self, elements, scale_min=0.7, scale_max=1.8, scale_step=0.15):
         if len(elements) != 2:
-            raise ValueError("BinaryRadiusSampler requires exactly 2 elements, "
-                             "got {}".format(len(elements)))
+            raise ValueError(
+                f"BinaryRadiusSampler requires exactly 2 elements, got {len(elements)}"
+            )
         self.elements = elements
         self.nn_dists = {e: NN_DISTS[e] for e in elements}
 
@@ -42,16 +55,13 @@ class BinaryRadiusSampler:
         # Core radius grids per element
         self.core_radii_grids = {e: self.nn_dists[e] * scales for e in elements}
         # Cross-element NN distance
-        self.nn_dist_cross = (self.nn_dists[elements[0]] / 2.0 +
-                              self.nn_dists[elements[1]] / 2.0)
+        self.nn_dist_cross = self.nn_dists[elements[0]] / 2.0 + self.nn_dists[elements[1]] / 2.0
         self.core_radii_cross_grid = self.nn_dist_cross * scales
 
         # Build sampling grid: all combinations of element radii and cross radii
         elem0_grid = self.core_radii_grids[elements[0]]
         self.radii_to_sample = [
-            [r0, r_cross]
-            for r0 in elem0_grid
-            for r_cross in self.core_radii_cross_grid
+            [r0, r_cross] for r0 in elem0_grid for r_cross in self.core_radii_cross_grid
         ]
 
     def sample_radii(self, n_atoms, n_first_elem):
@@ -82,13 +92,13 @@ class BinaryRadiusSampler:
         core_radius_cross = rad[1]
 
         atom_types = {elem: idx + 1 for idx, elem in enumerate(self.elements)}
-        symbols = (int(n_first_elem) * [self.elements[0]] +
-                   int(n_atoms - n_first_elem) * [self.elements[1]])
+        symbols = int(n_first_elem) * [self.elements[0]] + int(n_atoms - n_first_elem) * [
+            self.elements[1]
+        ]
 
         return core_radius_0, core_radius_1, core_radius_cross, atom_types, symbols
 
-    def sample_radii_fixed(self, n_atoms, n_first_elem, grid_index=10,
-                           scale_step=0.18):
+    def sample_radii_fixed(self, n_atoms, n_first_elem, grid_index=10, scale_step=0.18):
         """Sample radii with fixed core radii (optimizer phase).
 
         Uses a coarser grid (scale_step=0.18 by default) and picks a fixed
@@ -102,19 +112,16 @@ class BinaryRadiusSampler:
         elem0_grid = self.nn_dists[self.elements[0]] * scales
         cross_grid = self.nn_dist_cross * scales
 
-        radii_grid = [
-            [r0, r_cross]
-            for r0 in elem0_grid
-            for r_cross in cross_grid
-        ]
+        radii_grid = [[r0, r_cross] for r0 in elem0_grid for r_cross in cross_grid]
         rad = radii_grid[min(grid_index, len(radii_grid) - 1)]
         core_radius_0 = rad[0]
         core_radius_1 = self.nn_dists[self.elements[1]]
         core_radius_cross = rad[1]
 
         atom_types = {elem: idx + 1 for idx, elem in enumerate(self.elements)}
-        symbols = (int(n_first_elem) * [self.elements[0]] +
-                   int(n_atoms - n_first_elem) * [self.elements[1]])
+        symbols = int(n_first_elem) * [self.elements[0]] + int(n_atoms - n_first_elem) * [
+            self.elements[1]
+        ]
 
         return core_radius_0, core_radius_1, core_radius_cross, atom_types, symbols
 
@@ -137,9 +144,9 @@ class MendeleevUniformRadiusSampler:
 
     def __init__(self, species, width, a, b, fixed_stoichiometry=False):
         from mendeleev.fetch import fetch_table
+
         self.ptable = fetch_table("elements")
-        self.radii_dict = dict(zip(
-            self.ptable['symbol'], self.ptable['covalent_radius_pyykko']))
+        self.radii_dict = dict(zip(self.ptable["symbol"], self.ptable["covalent_radius_pyykko"]))
         self.species = species
         self.width = width
         self.a = a
@@ -164,14 +171,12 @@ class MendeleevUniformRadiusSampler:
             - radii_by_symbol: dict mapping pseudo_symbol -> same dict
         """
         if self.fixed_stoichiometry:
-            comb = tuple(list(
-                itertools.islice(itertools.cycle(self.species), n_atoms)))
+            comb = tuple(list(itertools.islice(itertools.cycle(self.species), n_atoms)))
         else:
             if n_species is None:
                 n_species = n_atoms
             if probabilities is not None:
-                species = np.random.choice(
-                    self.species, n_species, p=probabilities, replace=False)
+                species = np.random.choice(self.species, n_species, p=probabilities, replace=False)
             else:
                 species = np.random.choice(self.species, n_species)
             comb = _random_combination_with_replacement(species, n_atoms)
@@ -181,7 +186,7 @@ class MendeleevUniformRadiusSampler:
         for i, c in enumerate(comb):
             r = self.beta_dist.rvs()
             r = ((r - 0.5) * self.width * 2.0 + 1) * self.radii_dict[c] / 100.0
-            pseudo_symbol = self.ptable['symbol'][i % len(self.ptable['symbol'])]
+            pseudo_symbol = self.ptable["symbol"][i % len(self.ptable["symbol"])]
             entry = {
                 "species_id": i + 1,
                 "original_symbol": c,
@@ -190,7 +195,7 @@ class MendeleevUniformRadiusSampler:
                 "r_min": 0.8 * r,
                 "r_core": r,
                 "r_cut": 3 * r,
-                "volume": (4.0 * np.pi / 3.0) * r ** 3,
+                "volume": (4.0 * np.pi / 3.0) * r**3,
             }
             radii[i + 1] = entry
             radii_by_symbol[pseudo_symbol] = entry

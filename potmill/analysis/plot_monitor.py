@@ -11,34 +11,34 @@ Usage:
 """
 
 import argparse
-import numpy as np
-import pandas as pd
+
 import matplotlib
+import pandas as pd
+
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from matplotlib.ticker import MultipleLocator
 
-
 STAGE_COLORS = {
-    "entropy":        "#0072B2",
-    "labeling":       "#D55E00",
-    "b_collecting":   "#CC79A7",
-    "featurization":  "#009E73",
-    "fitting":        "#F0E442",
-    "cost":           "#56B4E9",
-    "pareto":         "#E69F00",
-    "pops":           "#999999",
+    "entropy": "#0072B2",
+    "labeling": "#D55E00",
+    "b_collecting": "#CC79A7",
+    "featurization": "#009E73",
+    "fitting": "#F0E442",
+    "cost": "#56B4E9",
+    "pareto": "#E69F00",
+    "pops": "#999999",
 }
 
 STAGE_LABELS = {
-    "entropy":        "Entropy",
-    "labeling":       "Labeling",
-    "b_collecting":   "B Collecting",
-    "featurization":  "Featurization",
-    "fitting":        "Fitting",
-    "cost":           "Cost",
-    "pareto":         "Pareto",
-    "pops":           "POPS/UQ",
+    "entropy": "Entropy",
+    "labeling": "Labeling",
+    "b_collecting": "B Collecting",
+    "featurization": "Featurization",
+    "fitting": "Fitting",
+    "cost": "Cost",
+    "pareto": "Pareto",
+    "pops": "POPS/UQ",
 }
 
 STAGE_ORDER = list(STAGE_LABELS.keys())
@@ -73,10 +73,12 @@ def _find_active_spans(t, active, gap_tolerance_min=0.5):
 
 def main():
     parser = argparse.ArgumentParser(description="Plot PotMill pipeline monitoring data")
-    parser.add_argument("csv", nargs="?", default="pipeline_monitor.csv",
-                        help="Path to pipeline_monitor.csv")
-    parser.add_argument("--output", "-o", default=None,
-                        help="Output figure path (default: <csv_stem>.pdf)")
+    parser.add_argument(
+        "csv", nargs="?", default="pipeline_monitor.csv", help="Path to pipeline_monitor.csv"
+    )
+    parser.add_argument(
+        "--output", "-o", default=None, help="Output figure path (default: <csv_stem>.pdf)"
+    )
     args = parser.parse_args()
 
     if args.output is None:
@@ -99,7 +101,9 @@ def main():
     gantt_ratio = max(1.2, 0.35 * gantt_rows)
 
     fig, axes = plt.subplots(
-        3, 1, figsize=(12, 3.0 + gantt_ratio * 1.4),
+        3,
+        1,
+        figsize=(12, 3.0 + gantt_ratio * 1.4),
         sharex=True,
         gridspec_kw={"height_ratios": [1, 1, gantt_ratio], "hspace": 0.08},
     )
@@ -145,9 +149,14 @@ def main():
 
         for start, end in spans:
             ax_gantt.barh(
-                i, end - start, left=start, height=0.65,
-                color=STAGE_COLORS[stage], alpha=0.85,
-                edgecolor="white", linewidth=0.5,
+                i,
+                end - start,
+                left=start,
+                height=0.65,
+                color=STAGE_COLORS[stage],
+                alpha=0.85,
+                edgecolor="white",
+                linewidth=0.5,
             )
 
     ax_gantt.set_yticks(range(len(active_stages)))

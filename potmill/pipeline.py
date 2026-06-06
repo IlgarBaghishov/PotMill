@@ -1,13 +1,27 @@
 """Orchestration helpers for the __main__ pipeline: entropy worker setup, batch collection,
 run-directory preparation, and futures-progress reporting."""
 
+import concurrent.futures
 import os
 import shutil
-import concurrent.futures
 
-STAGES = ("entropy", "labeling", "b_collecting", "featurization", "fitting", "cost", "pareto", "pops")
-RUN_DIRS = {"entropy": "entropy", "labeling": "labeling", "featurize": "features",
-            "fit": "fits", "pops": "pops"}
+STAGES = (
+    "entropy",
+    "labeling",
+    "b_collecting",
+    "featurization",
+    "fitting",
+    "cost",
+    "pareto",
+    "pops",
+)
+RUN_DIRS = {
+    "entropy": "entropy",
+    "labeling": "labeling",
+    "featurize": "features",
+    "fit": "fits",
+    "pops": "pops",
+}
 
 
 def prepare_run_dirs(config, start_path):
@@ -31,9 +45,11 @@ def make_init_atoms_from_entropy(structuregen_config):
     descriptors via a shared directory, so the global information matrix reflects all workers'
     discoveries.
     """
+
     def init_atoms_from_entropy(executorlib_worker_id):
         import os
         import random
+
         import numpy as np
 
         shared_dir = os.path.join(os.getcwd(), "shared")
@@ -54,7 +70,9 @@ def make_init_atoms_from_entropy(structuregen_config):
         worker_config["shared_descriptor_dir"] = descriptor_dir
 
         from potmill.entropy import max_entropy_atoms_iterator
+
         return {"entropy_iterator": max_entropy_atoms_iterator(worker_config)}
+
     return init_atoms_from_entropy
 
 
@@ -79,7 +97,9 @@ def combine_b(start_path, labeling_results, labeling_IDs_ready_for_fit, batch_id
     new_b_files = " ".join(f"{job_id}/b" for job_id in labeling_IDs_finished)
     new_ready = labeling_IDs_ready_for_fit + labeling_IDs_finished
     len1, len2 = len(labeling_IDs_ready_for_fit), len(new_ready)
-    os.system(f"cat {start_path}features/b{len1}.csv {new_b_files} > {start_path}features/b{len2}.csv")
+    os.system(
+        f"cat {start_path}features/b{len1}.csv {new_b_files} > {start_path}features/b{len2}.csv"
+    )
     os.makedirs(f"{start_path}features/{batch_idx}", exist_ok=True)
     os.system(f"cat {new_b_files} > {start_path}features/{batch_idx}/b_batch.csv")
     return new_ready
@@ -100,22 +120,34 @@ def check_and_print_status(futures, name, total, list_of_lists=False, count_mult
                 done, futures[i] = concurrent.futures.wait(futures[i], timeout=1)
                 if len(done) != 0:
                     remaining = len(futures[i]) * count_multiplier
-                    print(f"{remaining} {name}S REMAINING  --- {total-remaining} {name}S FINISHED  "
-                          f"--- {total} {name}S TOTAL", flush=True)
+                    print(
+                        f"{remaining} {name}S REMAINING  --- {total - remaining} {name}S FINISHED  "
+                        f"--- {total} {name}S TOTAL",
+                        flush=True,
+                    )
                 break
     else:
         done, futures = concurrent.futures.wait(futures, timeout=1)
         if len(done) != 0:
             remaining = len(futures) * count_multiplier
-            print(f"{remaining} {name}S REMAINING  --- {total-remaining} {name}S FINISHED  --- "
-                  f"{total} {name}S TOTAL", flush=True)
+            print(
+                f"{remaining} {name}S REMAINING  --- {total - remaining} {name}S FINISHED  --- "
+                f"{total} {name}S TOTAL",
+                flush=True,
+            )
     return futures
 
 
 def task_counts(entropy, labeling, b_collecting, featurization, fitting, cost, pareto, pops):
     """Build the {stage: count, stage_running: count} dict for ResourceMonitor.update_task_counts."""
-    flat = {"entropy": entropy, "labeling": labeling, "b_collecting": b_collecting,
-            "cost": cost, "pareto": pareto, "pops": pops}
+    flat = {
+        "entropy": entropy,
+        "labeling": labeling,
+        "b_collecting": b_collecting,
+        "cost": cost,
+        "pareto": pareto,
+        "pops": pops,
+    }
     nested = {"featurization": featurization, "fitting": fitting}
     counts = {}
     for name, futs in flat.items():

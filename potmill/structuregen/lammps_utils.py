@@ -27,12 +27,11 @@ def compute_n_descriptors(twojmax, n_elements, chemflag, bzeroflag):
     """
     n_bispec = count_snap_bispectrum(twojmax)
     if chemflag:
-        return n_bispec * (n_elements ** 3)
+        return n_bispec * (n_elements**3)
     return n_bispec
 
 
-def write_mliap_descriptor(filename, elements, rcutfac, twojmax, radelems,
-                           chemflag=0, bzeroflag=0):
+def write_mliap_descriptor(filename, elements, rcutfac, twojmax, radelems, chemflag=0, bzeroflag=0):
     """Write a LAMMPS MLIAP SNAP descriptor file.
 
     Args:
@@ -51,19 +50,19 @@ def write_mliap_descriptor(filename, elements, rcutfac, twojmax, radelems,
 
     with open(filename, "w") as f:
         f.write("# required\n")
-        f.write("rcutfac {} \n".format(rcutfac))
-        f.write("twojmax {} \n".format(twojmax))
+        f.write(f"rcutfac {rcutfac} \n")
+        f.write(f"twojmax {twojmax} \n")
         f.write("# elements\n")
-        f.write("nelems {} \n".format(len(elements)))
+        f.write(f"nelems {len(elements)} \n")
         f.write("elems {} \n".format(" ".join(elements)))
-        f.write("radelems {} \n".format(radelems_str))
+        f.write(f"radelems {radelems_str} \n")
         f.write("welems {} \n".format(" ".join(["1"] * len(elements))))
         if chemflag:
             f.write("chemflag 1 \n")
         f.write("# optional\n")
         f.write("rfac0 0.99363\n")
         f.write("rmin0 0\n")
-        f.write("bzeroflag {}\n".format(bzeroflag))
+        f.write(f"bzeroflag {bzeroflag}\n")
 
 
 def generate_lammps_scripts(radii, descriptor_filename):
@@ -80,19 +79,19 @@ def generate_lammps_scripts(radii, descriptor_filename):
     Returns:
         (mliap_script, zero_script) as newline-joined strings.
     """
-    r_core_max = max(v['r_core'] for v in radii.values())
+    r_core_max = max(v["r_core"] for v in radii.values())
 
     # Entropy model + soft repulsion
     mliap_lines = []
     mliap_lines.append("neigh_modify one 10000")
     mliap_lines.append(
-        "pair_style hybrid/overlay soft {} mliap model mliappy LATER "
-        "descriptor sna {}".format(r_core_max, descriptor_filename))
+        f"pair_style hybrid/overlay soft {r_core_max} mliap model mliappy LATER "
+        f"descriptor sna {descriptor_filename}"
+    )
     for c in itertools.combinations_with_replacement(sorted(radii.keys()), 2):
-        r_sum = radii[c[0]]['r_core'] + radii[c[1]]['r_core']
-        mliap_lines.append(
-            "pair_coeff {} {} soft 10 {}".format(c[0], c[1], r_sum))
-    elem_str = " ".join(radii[k]['symbol'] for k in sorted(radii.keys()))
+        r_sum = radii[c[0]]["r_core"] + radii[c[1]]["r_core"]
+        mliap_lines.append(f"pair_coeff {c[0]} {c[1]} soft 10 {r_sum}")
+    elem_str = " ".join(radii[k]["symbol"] for k in sorted(radii.keys()))
     mliap_lines.append("pair_coeff * * mliap " + elem_str)
     mliap_lines.append("compute pe_peratom all pe/atom")
     mliap_script = "\n".join(mliap_lines)
@@ -100,20 +99,25 @@ def generate_lammps_scripts(radii, descriptor_filename):
     # Soft repulsion only
     zero_lines = []
     zero_lines.append("neigh_modify one 10000")
-    zero_lines.append("pair_style soft {}".format(r_core_max))
+    zero_lines.append(f"pair_style soft {r_core_max}")
     for c in itertools.combinations_with_replacement(sorted(radii.keys()), 2):
-        r_sum = radii[c[0]]['r_core'] + radii[c[1]]['r_core']
-        zero_lines.append(
-            "pair_coeff {} {} 10 {}".format(c[0], c[1], r_sum))
+        r_sum = radii[c[0]]["r_core"] + radii[c[1]]["r_core"]
+        zero_lines.append(f"pair_coeff {c[0]} {c[1]} 10 {r_sum}")
     zero_script = "\n".join(zero_lines)
 
     return mliap_script, zero_script
 
 
-def generate_binary_lammps_scripts(elements, descriptor_filename,
-                                   core_radius_0, core_radius_1,
-                                   core_radius_cross,
-                                   min_dist_0, min_dist_1, min_dist_cross):
+def generate_binary_lammps_scripts(
+    elements,
+    descriptor_filename,
+    core_radius_0,
+    core_radius_1,
+    core_radius_cross,
+    min_dist_0,
+    min_dist_1,
+    min_dist_cross,
+):
     """Generate LAMMPS scripts for binary element entropy structure generation.
 
     Uses the original binary_entropy parameterization:
@@ -137,22 +141,20 @@ def generate_binary_lammps_scripts(elements, descriptor_filename,
     """
     zero_script = (
         "pair_style soft 5.0\n"
-        "pair_coeff 1 1 10 {}\n"
-        "pair_coeff 1 2 8 {}\n"
-        "pair_coeff 2 2 5 {}"
-    ).format(min_dist_0, min_dist_cross, min_dist_1)
+        f"pair_coeff 1 1 10 {min_dist_0}\n"
+        f"pair_coeff 1 2 8 {min_dist_cross}\n"
+        f"pair_coeff 2 2 5 {min_dist_1}"
+    )
 
     mliap_script = (
         "pair_style hybrid/overlay soft 5 mliap model mliappy LATER "
-        "descriptor sna {}\n"
-        "pair_coeff 1 1 soft 10 {}\n"
-        "pair_coeff 1 2 soft 10 {}\n"
-        "pair_coeff 2 2 soft 10 {}\n"
-        "pair_coeff * * mliap {} {}\n"
+        f"descriptor sna {descriptor_filename}\n"
+        f"pair_coeff 1 1 soft 10 {core_radius_0}\n"
+        f"pair_coeff 1 2 soft 10 {core_radius_cross}\n"
+        f"pair_coeff 2 2 soft 10 {core_radius_1}\n"
+        f"pair_coeff * * mliap {elements[0]} {elements[1]}\n"
         "compute pe_peratom all pe/atom"
-    ).format(descriptor_filename,
-             core_radius_0, core_radius_cross, core_radius_1,
-             elements[0], elements[1])
+    )
 
     return mliap_script, zero_script
 
@@ -169,16 +171,16 @@ def write_mliap_descriptor_multi(filename, radii, twojmax, bzeroflag=1):
         twojmax: Maximum angular momentum quantum number (2j).
         bzeroflag: Whether to include B0 components (0 or 1).
     """
-    elements = [radii[k]['symbol'] for k in sorted(radii.keys())]
-    radelems = [str(radii[k]['r_cut']) for k in sorted(radii.keys())]
+    elements = [radii[k]["symbol"] for k in sorted(radii.keys())]
+    radelems = [str(radii[k]["r_cut"]) for k in sorted(radii.keys())]
 
     with open(filename, "w") as f:
         f.write("rcutfac 1 \n")
-        f.write("twojmax {} \n".format(twojmax))
-        f.write("nelems {} \n".format(len(elements)))
+        f.write(f"twojmax {twojmax} \n")
+        f.write(f"nelems {len(elements)} \n")
         f.write("elems {} \n".format(" ".join(elements)))
         f.write("radelems {} \n".format(" ".join(radelems)))
         f.write("welems {} \n".format(" ".join(["1"] * len(elements))))
         f.write("rfac0 0.99363 \n")
         f.write("rmin0 0 \n")
-        f.write("bzeroflag {}\n".format(bzeroflag))
+        f.write(f"bzeroflag {bzeroflag}\n")

@@ -9,11 +9,9 @@ label functions share the signature ``(start_path, atoms, job_id, dirpath, <inje
 
 from collections import namedtuple
 
-from potmill.labeling.uma import (
-    make_init_uma_calculator, make_init_uma_predictor, uma, uma_batch)
+from potmill.labeling.lammps import lammps, make_init_lammps
+from potmill.labeling.uma import make_init_uma_calculator, make_init_uma_predictor, uma, uma_batch
 from potmill.labeling.vasp import make_init_vasp, vasp
-from potmill.labeling.lammps import make_init_lammps, lammps
-from potmill.labeling.fake import fake_vasp
 
 Labeling = namedtuple("Labeling", ["init_function", "per_config", "batched"])
 
@@ -38,5 +36,6 @@ def make_labeling(config):
         return Labeling(make_init_vasp(config), vasp, None)
     if name == "LAMMPS":
         return Labeling(make_init_lammps(config), lammps, None)
-    raise ValueError(f"Unknown [ourLabeling] calculator '{name}' "
-                     f"(supported: FAIRChemCalculator, Vasp, LAMMPS)")
+    raise ValueError(
+        f"Unknown [ourLabeling] calculator '{name}' (supported: FAIRChemCalculator, Vasp, LAMMPS)"
+    )
