@@ -62,7 +62,7 @@ cd ~/codes/PotMill && pip install -e ".[all]"
 ```
 
 > **Tested on Perlmutter (2026-06)** with python 3.12, jax 0.10.1, jaxlib 0.10.1, torch 2.8.0+cu128,
-> fairchem-core 2.20.0, numpy 2.4.6, scipy 1.17.1, ase 3.28.0, executorlib 1.9.3, mendeleev 1.1.0,
+> fairchem-core 2.20.0, numpy 2.4.6, scipy 1.17.1, ase 3.28.0, executorlib 1.9.4, mendeleev 1.1.0,
 > POPSRegression 0.4.0, SubDataPy 0.1.0, LAMMPS 11 Feb 2026 (`b75dfcc930`), FitSNAP `master`. Entropy
 > generation is CPU/contention-bound, so wall-clock entropy throughput varies ~±15% with cluster load
 > and node draw — don't read small run-to-run timing differences as regressions.

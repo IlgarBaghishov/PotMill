@@ -25,13 +25,13 @@ set -uo pipefail
 # ---------- USER-SPECIFIC PATHS (edit me) -----------------------------------
 CONDA_ENV=/global/cfs/cdirs/m1883/ilgar/conda_envs/potmill   # conda env with jax, ase, lammps, fitsnap3lib, fairchem, torch, executorlib
 POTMILL=$HOME/codes/PotMill                                   # this repo's clone
-EXECUTORLIB=$HOME/codes/executorlib/src                        # executorlib clone with the PR #589 dynamic max_workers + id()-dedup fix
 SUBDATAPY=/global/cfs/cdirs/m1883/ilgar/codes/SubDataPy        # SubDataPy for GPU lstsq (optional -- fit.py falls back if missing)
 # ----------------------------------------------------------------------------
 
 export PATH="$CONDA_ENV/bin:$PATH"
-# Prepend so the local executorlib + potmill + SubDataPy win over any conda copies.
-export PYTHONPATH="$EXECUTORLIB:$SUBDATAPY:$POTMILL:${PYTHONPATH:-}"
+# Prepend so the local potmill + SubDataPy win over any conda copies. executorlib
+# is the conda env's release (>=1.9.4 has the dynamic max_workers + id()-dedup fix).
+export PYTHONPATH="$SUBDATAPY:$POTMILL:${PYTHONPATH:-}"
 
 # fairchem-core pulls in wandb at import time, and wandb does many filesystem
 # stat()s during init -- on a contended CFS this can take 10+ minutes per
