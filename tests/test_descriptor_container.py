@@ -4,8 +4,15 @@ import unittest
 
 import numpy as np
 
-from potmill.structuregen.model import CNManager
-from potmill.structuregen.optimizer import _append_descriptor_record, _read_descriptor_records
+try:
+    # structuregen pulls in jax (and ase/mendeleev/lammps); CI installs none of those, so this
+    # test skips there and runs in the full dev environment where structuregen is importable.
+    from potmill.structuregen.model import CNManager
+    from potmill.structuregen.optimizer import _append_descriptor_record, _read_descriptor_records
+
+    _HAVE_STRUCTUREGEN = True
+except ImportError:
+    _HAVE_STRUCTUREGEN = False
 
 
 def _manager_from(descs, n_desc):
@@ -15,6 +22,7 @@ def _manager_from(descs, n_desc):
     return m
 
 
+@unittest.skipUnless(_HAVE_STRUCTUREGEN, "structuregen (jax/ase/mendeleev) not installed")
 class TestDescriptorContainer(unittest.TestCase):
     def test_roundtrip_matches_per_array_feed(self):
         """The per-worker .bin container must accumulate the EXACT same information matrix as feeding
