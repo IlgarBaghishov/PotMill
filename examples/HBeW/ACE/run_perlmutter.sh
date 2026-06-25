@@ -23,9 +23,9 @@
 set -uo pipefail
 
 # ---------- USER-SPECIFIC PATHS (edit me) -----------------------------------
-CONDA_ENV=/global/cfs/cdirs/m1883/ilgar/conda_envs/potmill   # conda env with jax, ase, lammps, fitsnap3lib, fairchem, torch, executorlib
-POTMILL=$HOME/codes/PotMill                                   # this repo's clone
-SUBDATAPY=/global/cfs/cdirs/m1883/ilgar/codes/SubDataPy        # SubDataPy for GPU lstsq (optional -- fit.py falls back if missing)
+CONDA_ENV=$WORK/conda_envs/potmill   # conda env with jax, ase, lammps, fitsnap3lib, fairchem, torch, executorlib
+POTMILL=$WORK/codes/PotMill          # this repo's clone
+SUBDATAPY=$WORK/codes/SubDataPy        # SubDataPy for GPU lstsq (optional -- fit.py falls back if missing)
 # ----------------------------------------------------------------------------
 
 export PATH="$CONDA_ENV/bin:$PATH"
