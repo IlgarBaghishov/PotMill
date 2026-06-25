@@ -114,32 +114,47 @@ def main():
     gantt_rows = len(active_stages) if active_stages else 1
     gantt_ratio = max(1.2, 0.35 * gantt_rows)
 
-    fig, axes = plt.subplots(
-        3,
-        1,
-        figsize=(12, 3.0 + gantt_ratio * 1.4),
-        sharex=True,
-        gridspec_kw={"height_ratios": [1, 1, gantt_ratio], "hspace": 0.08},
+    # Drop the GPU panel entirely when the run never used a GPU (e.g. CPU/VASP
+    # labeling leaves mean_gpu_util_pct all-NaN): an empty flat strip just wastes
+    # space. Detect from the data rather than a flag so it works for any backend.
+    gpu_util = (
+        pd.to_numeric(df["mean_gpu_util_pct"], errors="coerce")
+        if "mean_gpu_util_pct" in df.columns
+        else None
     )
+    has_gpu = gpu_util is not None and gpu_util.notna().any() and gpu_util.fillna(0).max() > 0
 
-    # ---- Panel 1: GPU Utilization ----
+    height_ratios = ([1] if has_gpu else []) + [1, gantt_ratio]
+    n_top = len(height_ratios) - 1  # number of util panels above the gantt (1 or 2)
+    fig, axes = plt.subplots(
+        len(height_ratios),
+        1,
+        figsize=(12, 1.5 * n_top + gantt_ratio * 1.4),
+        sharex=True,
+        gridspec_kw={"height_ratios": height_ratios, "hspace": 0.08},
+    )
+    ax_i = 0
+
+    # ---- Panel: GPU Utilization (only if the run actually used GPUs) ----
     # Drop missing samples (a flux-exec timeout under load leaves an empty cell) so the trace
     # connects across the gap instead of plunging to 0, which would misread as a real drop.
-    ax_gpu = axes[0]
-    gpu_util = pd.to_numeric(df["mean_gpu_util_pct"], errors="coerce")
-    gpu_m = gpu_util.notna()
-    ax_gpu.fill_between(t[gpu_m], 0, gpu_util[gpu_m], alpha=0.25, color="#0072B2")
-    ax_gpu.plot(t[gpu_m], gpu_util[gpu_m], color="#0072B2", linewidth=0.8)
-    ax_gpu.set_ylabel("GPU Util. (%)", fontsize=10)
-    ax_gpu.set_ylim(0, 105)
-    ax_gpu.yaxis.set_major_locator(MultipleLocator(25))
-    ax_gpu.grid(True, alpha=0.25, linewidth=0.5)
-    ax_gpu.tick_params(labelsize=9)
+    if has_gpu:
+        ax_gpu = axes[ax_i]
+        ax_i += 1
+        gpu_m = gpu_util.notna()
+        ax_gpu.fill_between(t[gpu_m], 0, gpu_util[gpu_m], alpha=0.25, color="#0072B2")
+        ax_gpu.plot(t[gpu_m], gpu_util[gpu_m], color="#0072B2", linewidth=0.8)
+        ax_gpu.set_ylabel("GPU Util. (%)", fontsize=10)
+        ax_gpu.set_ylim(0, 105)
+        ax_gpu.yaxis.set_major_locator(MultipleLocator(25))
+        ax_gpu.grid(True, alpha=0.25, linewidth=0.5)
+        ax_gpu.tick_params(labelsize=9)
 
-    # ---- Panel 2: CPU Utilization ----
-    ax_cpu = axes[1]
+    # ---- Panel: CPU Utilization ----
+    ax_cpu = axes[ax_i]
+    ax_i += 1
     cpu_util = pd.to_numeric(df["mean_cpu_util_pct"], errors="coerce")
-    cpu_m = cpu_util.notna()  # see Panel 1: connect across missing samples, don't plunge to 0
+    cpu_m = cpu_util.notna()  # see GPU panel: connect across missing samples, don't plunge to 0
     ax_cpu.fill_between(t[cpu_m], 0, cpu_util[cpu_m], alpha=0.25, color="#D55E00")
     ax_cpu.plot(t[cpu_m], cpu_util[cpu_m], color="#D55E00", linewidth=0.8)
     ax_cpu.set_ylabel("CPU Util. (physical, %)", fontsize=10)
@@ -148,12 +163,18 @@ def main():
     ax_cpu.grid(True, alpha=0.25, linewidth=0.5)
     ax_cpu.tick_params(labelsize=9)
 
-    # ---- Panel 3: Gantt Chart ----
-    ax_gantt = axes[2]
+    # ---- Panel: Gantt Chart ----
+    ax_gantt = axes[ax_i]
 
-    # Floor width so a single-sample (sub-cadence) burst still renders as a
-    # visible tick rather than a zero-width (invisible) bar.
-    min_bar_w = 1.5 * float(np.median(np.diff(t))) if len(t) > 1 else 0.0
+    # Floor width so a short burst still renders as a visible tick instead of a
+    # sub-pixel (invisible) bar. It must scale with the VISIBLE axis: a few-second
+    # burst is ~2 px on a 1.5 h UMA timeline but <0.2 px on an 8 h VASP timeline,
+    # where the white bar outline then erases it entirely. ~0.1% of the span keeps
+    # a burst >=~2 px on any axis; the dense UMA view is unchanged (its bursts
+    # already exceed this floor).
+    span_total = float(t[-1] - t[0]) if len(t) > 1 else 1.0
+    cadence_floor = 1.5 * float(np.median(np.diff(t))) if len(t) > 1 else 0.0
+    min_bar_w = max(cadence_floor, 0.001 * span_total)
 
     for i, stage in enumerate(active_stages):
         running_col = f"n_{stage}_running"
@@ -170,15 +191,20 @@ def main():
         spans = _find_active_spans(t, active)
 
         for start, end in spans:
+            real_w = end - start
+            floored = real_w < min_bar_w
+            # A floored event-tick must not be erased by the white outline; draw
+            # those edgeless. Genuinely wide bars keep the outline so the dense
+            # UMA/GPU view is unchanged.
             ax_gantt.barh(
                 i,
-                max(end - start, min_bar_w),
+                max(real_w, min_bar_w),
                 left=start,
                 height=0.65,
                 color=STAGE_COLORS[stage],
                 alpha=0.85,
-                edgecolor="white",
-                linewidth=0.5,
+                edgecolor="none" if floored else "white",
+                linewidth=0.0 if floored else 0.5,
             )
 
     ax_gantt.set_yticks(range(len(active_stages)))
