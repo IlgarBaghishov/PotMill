@@ -166,45 +166,40 @@ def main():
     # ---- Panel: Gantt Chart ----
     ax_gantt = axes[ax_i]
 
-    # Floor width so a short burst still renders as a visible tick instead of a
-    # sub-pixel (invisible) bar. It must scale with the VISIBLE axis: a few-second
-    # burst is ~2 px on a 1.5 h UMA timeline but <0.2 px on an 8 h VASP timeline,
-    # where the white bar outline then erases it entirely. ~0.1% of the span keeps
-    # a burst >=~2 px on any axis; the dense UMA view is unchanged (its bursts
-    # already exceed this floor).
-    span_total = float(t[-1] - t[0]) if len(t) > 1 else 1.0
-    cadence_floor = 1.5 * float(np.median(np.diff(t))) if len(t) > 1 else 0.0
-    min_bar_w = max(cadence_floor, 0.001 * span_total)
+    # Draw bars at their TRUE width (the detected active interval). The figure is a
+    # vector PDF, so even a sub-pixel tick is preserved exactly and revealed by zoom
+    # -- we deliberately do NOT widen bars for on-screen visibility, because widening
+    # distorts durations and can bridge genuine gaps (e.g. labeling's real idle
+    # stalls). A single-sample burst is floored only to the sampling cadence (its
+    # real time resolution, ~1-2 s), never more, so gaps larger than a sample survive.
+    cadence = float(np.median(np.diff(t))) if len(t) > 1 else 0.0
 
     for i, stage in enumerate(active_stages):
         running_col = f"n_{stage}_running"
         remaining_col = f"n_{stage}"
+        # A stage is active in a sample if a worker was caught running OR its pending
+        # count dropped since the previous sample (a task finished in that interval).
+        # The running snapshot alone misses short, bursty stages: fitting runs in ~30
+        # waves tied to the b-batches and almost never coincides with the once-per-loop
+        # f.running() snapshot (caught in only ~0.2% of samples on the VASP run), which
+        # left the Fitting row near-empty. Unioning the completion signal recovers them.
+        remaining = pd.to_numeric(df[remaining_col], errors="coerce").fillna(0)
+        active = remaining.diff().fillna(0) < 0  # pending dropped => a task completed
         if has_running_cols and running_col in df.columns:
-            # Use running count: active when workers are executing tasks
             running = pd.to_numeric(df[running_col], errors="coerce").fillna(0)
-            active = running > 0
-        else:
-            # Fallback: detect activity from remaining count decreasing
-            remaining = pd.to_numeric(df[remaining_col], errors="coerce").fillna(0)
-            completed = remaining.max() - remaining
-            active = completed.diff().fillna(0) > 0
+            active = active | (running > 0)
         spans = _find_active_spans(t, active)
 
         for start, end in spans:
-            real_w = end - start
-            floored = real_w < min_bar_w
-            # A floored event-tick must not be erased by the white outline; draw
-            # those edgeless. Genuinely wide bars keep the outline so the dense
-            # UMA/GPU view is unchanged.
             ax_gantt.barh(
                 i,
-                max(real_w, min_bar_w),
+                max(end - start, cadence),  # true width; cadence floor only for a 1-sample burst
                 left=start,
                 height=0.65,
                 color=STAGE_COLORS[stage],
                 alpha=0.85,
-                edgecolor="none" if floored else "white",
-                linewidth=0.0 if floored else 0.5,
+                edgecolor="none",
+                linewidth=0.0,
             )
 
     ax_gantt.set_yticks(range(len(active_stages)))
