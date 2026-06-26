@@ -2,6 +2,15 @@
 
 Automated active-design pipeline for machine-learned interatomic potentials.
 
+## Working principle (agents: non-negotiable)
+
+**Never silently implement something inconsistent because you couldn't find what you needed.**
+If a required input is missing or ambiguous (a file, structure source, reference value, config),
+STOP and raise it to the user — never assume, and never apply a different/inconsistent method to
+one case than another and bury it in a caveat. Validate every reconstruction/derivation against
+ground truth (e.g. a reconstructed RMSE must match the stored RMSE), and never paper over a
+discrepancy — surface and fix it, or escalate.
+
 ## Overview
 
 PotMill is an HPC pipeline that iteratively generates training data for machine learning interatomic potentials (MLIPs) by maximizing information entropy in the descriptor space. It orchestrates:
