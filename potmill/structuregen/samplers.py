@@ -192,7 +192,7 @@ class MendeleevUniformRadiusSampler:
                 "original_symbol": c,
                 "symbol": pseudo_symbol,
                 "r_atom": r,
-                "r_min": 0.8 * r,
+                "r_min": 0.9 * r,
                 "r_core": r,
                 "r_cut": 3 * r,
                 "volume": (4.0 * np.pi / 3.0) * r**3,

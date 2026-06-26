@@ -321,10 +321,17 @@ def _check_distances_binary(atoms, elements, atom_types, min_dist_0, min_dist_1,
     return False
 
 
+# Hard minimum interatomic distance (A): no accepted config may have any pair closer than this,
+# regardless of the per-species r_min sum. Backstops the gate for small-radius elements (e.g. H,
+# whose r_min sum can fall below a physical bond length), so the entropy push can't drive atoms
+# into overlaps that the labeler then reports as ~1000s of eV/A.
+_MIN_DIST_FLOOR = 0.6
+
+
 def _check_distances_multi(atoms, radii, species_list):
     """Check pairwise distances for multi-element systems.
 
-    Verifies that for each pair (i, j), the distance exceeds r_min_i + r_min_j.
+    Verifies that for each pair (i, j), the distance exceeds max(r_min_i + r_min_j, floor).
     """
     n_atoms = len(atoms)
     dists = atoms.get_all_distances(mic=True)
@@ -337,7 +344,7 @@ def _check_distances_multi(atoms, radii, species_list):
                 radii[species_index_map[species_list[a1]]]["r_min"]
                 + radii[species_index_map[species_list[a2]]]["r_min"]
             )
-            if dists[a1, a2] < r_min_sum:
+            if dists[a1, a2] < max(r_min_sum, _MIN_DIST_FLOOR):
                 return False
 
     return True

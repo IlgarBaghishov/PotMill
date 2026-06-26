@@ -574,7 +574,7 @@ class EntropyMaximizer:
             self.n_reject_improve = 0
             self.n_reject_dist = 0
         if self.n_accept > 10:
-            self.K *= 1.1
+            self.K *= 1.05
             self.n_accept = 0
 
         print(
