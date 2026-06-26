@@ -52,6 +52,7 @@ def uma(start_path, input_file, job_id, dirpath, calc):
     rows = b_rows(job_id, energy, len(atoms), forces)
     # Keep labeled structures as one trajectory per worker (appended), not one file per config.
     atoms.calc = SinglePointCalculator(atoms, energy=energy, forces=forces)
+    atoms.info["job_id"] = int(job_id)  # self-describing labeled traj (downstream keys composition on this)
     traj = Trajectory(f"labeled_{os.getpid()}.traj", "a")
     traj.write(atoms)
     traj.close()
@@ -89,6 +90,8 @@ def uma_batch(start_path, atoms_list, job_ids, labeling_dir, predictor, task_nam
         energy = float(energies[i])
         rows = b_rows(job_id, energy, n_atoms, f)
         atoms.calc = SinglePointCalculator(atoms, energy=energy, forces=f)
+        if job_id is not None:
+            atoms.info["job_id"] = int(job_id)  # self-describing labeled traj (keys composition)
         labeled.append(atoms)
         results.append({"job_ID": job_id, "b_rows": rows, "atoms": atoms})
 
