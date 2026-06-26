@@ -116,16 +116,37 @@ def parity(rec, dE_row, out, hp):
 
 
 # --------------------------------------------------------------- 3) error vs window
-def error_window(wm, out, hp, brk=6.0):
-    """Error vs energy window on a BROKEN x-axis: the informative low-energy region (0.3 -> brk) is
-    drawn at full width, then an axis break (//), then the long high-energy tail (brk -> max) is
-    compressed into a narrow panel -- so the endpoint is still shown without a giant empty gap
-    squashing the bulk. A grey secondary axis shows the config count per window (trust where > 100)."""
+def error_window(wm, out, hp, brk=None):
+    """Error vs energy window. With brk=None: a plain single linear axis over all the data (used when
+    the ΔE tail isn't extreme, or a narrow range where a break would invert). With brk set: a BROKEN
+    x-axis -- the bulk (0.3 -> brk) at full width, an axis break (//), then the long tail (brk -> max)
+    compressed into a narrow panel so a far outlier can't squash the bulk. Either way every structure
+    is shown. A grey secondary axis gives the config count per window (trust where > 100)."""
     W = np.array([m["W"] for m in wm])
     ncfg = np.array([m["n_cfg"] for m in wm])
+    specs = [("E_rmse", "E_mae", "Energy", "eV/atom", EC), ("F_rmse", "F_mae", "Force", "eV/Å", FC)]
+
+    if brk is None:  # no extreme tail -> single linear axis over the full range
+        fig, ax = plt.subplots(1, 2, figsize=(12, 5))
+        for k, (rk, mk, lab, unit, col) in enumerate(specs):
+            ax[k].plot(W, [m[rk] for m in wm], "-o", ms=3, color=col, label="RMSE")
+            ax[k].plot(W, [m[mk] for m in wm], "--s", ms=3, color=col, alpha=0.6, label="MAE")
+            ax[k].set_xlabel("Energy window ΔE_form above min (eV/atom)")
+            ax[k].set_ylabel(f"{lab} error ({unit})")
+            ax[k].grid(alpha=0.25, lw=0.5)
+            a2 = ax[k].twinx()
+            a2.plot(W, ncfg, color="0.5", lw=1, alpha=0.7)
+            a2.axhline(100, color="0.7", ls="--", lw=0.7)
+            a2.set_ylabel("configs in window", color="0.5", fontsize=8)
+            ax[k].legend(fontsize=8, loc="center right")
+        fig.suptitle(f"Error vs energy window — knee: {hp}", fontsize=11, fontweight="bold")
+        fig.tight_layout(rect=[0, 0, 1, 0.95])
+        fig.savefig(out, dpi=200, bbox_inches="tight")
+        print(f"Saved: {out}")
+        return
+
     fig = plt.figure(figsize=(13, 5))
     subfigs = fig.subfigures(1, 2, wspace=0.12)
-    specs = [("E_rmse", "E_mae", "Energy", "eV/atom", EC), ("F_rmse", "F_mae", "Force", "eV/Å", FC)]
     for sf, (rk, mk, lab, unit, col) in zip(subfigs, specs, strict=True):
         axm, axt = sf.subplots(
             1, 2, sharey=True, gridspec_kw={"width_ratios": [3.0, 1.0], "wspace": 0.06}
@@ -249,16 +270,26 @@ def main():
 
     parity(rec, dE_row, out_dir + "parity.pdf", hp)
 
-    # Broken x-axis: sample the informative bulk densely (0.3 -> brk, ~99% of configs) and the long
-    # high-energy tail sparsely (brk -> max); error_window draws the bulk at full width and the tail
-    # compressed past an axis break, so the endpoint shows without the outlier stretching the range.
-    brk = 6.0
+    # Window x-axis. brk = the bulk/tail boundary, adapted per run (98th pct of per-config ΔE,
+    # floored at 2) so it fits any system/labeling/scale -- ~6 for the 100k UMA set, ~3 for W-Be VASP.
+    # Use a BROKEN axis only when the tail is genuinely extreme (max >> bulk): draw the bulk densely at
+    # full width and compress the sparse tail past an axis break, so a far outlier can't squash the
+    # bulk. Otherwise (mild tail, or a narrow ΔE range where a break would invert) use a plain single
+    # linear axis over all the data. Either way every structure is shown -- nothing is capped.
     mx = float(dE_row.max())
-    windows = sorted(
-        set(np.round(np.linspace(0.3, brk, 30), 3))
-        | {0.5, 1.0, 2.0}
-        | set(np.round(np.linspace(brk, mx, 8), 3))
-    )
+    brk = round(max(2.0, float(np.quantile(dE_cfg, 0.98))), 1)
+    lo = min(0.3, 0.5 * mx)  # guard: start below the max even for an ultra-narrow ΔE range
+    if mx > 2.0 * brk:
+        windows = sorted(
+            set(np.round(np.linspace(lo, brk, 30), 3))
+            | {a for a in (0.5, 1.0, 2.0) if a <= brk}
+            | set(np.round(np.linspace(brk, mx, 8), 3))
+        )
+    else:
+        windows = sorted(
+            set(np.round(np.linspace(lo, mx, 32), 3)) | {a for a in (0.5, 1.0, 2.0) if a <= mx}
+        )
+        brk = None
     wm = R.windowed_metrics(rec, dE_row, windows)
     error_window(wm, out_dir + "error_window.pdf", hp, brk=brk)
 
